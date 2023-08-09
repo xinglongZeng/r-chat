@@ -2,9 +2,9 @@ use std::{env, thread, time};
 use std::pin::{Pin, pin};
 use std::thread::Thread;
 use actix::Actor;
-use r_chat::chat_protocol::{calculate_len_by_data, ChatCommand, Protocol};
-use r_chat::net;
-use r_chat::net::{create_factory, get_chat_vec, TcpServer, TcpServerState, TcpSocketConfig, TestChatHandler};
+use socket::chat_protocol::{calculate_len_by_data, ChatCommand, Protocol};
+use socket::net;
+use socket::net::{create_factory, get_chat_vec, TcpServer, TcpServerState, TcpSocketConfig, TestChatHandler};
 
 #[tokio::test]
 // #[test]

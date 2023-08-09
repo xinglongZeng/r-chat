@@ -2,8 +2,6 @@ use std::collections::HashMap;
 use std::{env, thread};
 use std::error::Error;
 use std::net::SocketAddr;
-use std::ops::DerefMut;
-use std::pin::{Pin, pin};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream, ToSocketAddrs};
 use crate::chat_protocol::{ChatCommand, ChatContent, ChatData, ChatFileContent, ChatTextContent, Protocol};
@@ -109,7 +107,7 @@ async fn start_server_accept(server: &mut TcpServer){
 }
 
 
-pub async fn parse_tcp_stream(
+async fn parse_tcp_stream(
     stream: TcpStream,
     address: SocketAddr,
     // server: &mut TcpServer,
