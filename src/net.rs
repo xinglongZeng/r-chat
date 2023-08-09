@@ -1,43 +1,60 @@
 use std::collections::HashMap;
+use std::{env, thread};
+use std::error::Error;
 use std::net::SocketAddr;
+use std::ops::DerefMut;
+use std::pin::{Pin, pin};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream, ToSocketAddrs};
 use crate::chat_protocol::{ChatCommand, ChatContent, ChatData, ChatFileContent, ChatTextContent, Protocol};
 use crate::protocol_factory::{HandleProtocolFactory, HandlerProtocolData};
-use std::error::Error;
 use async_trait::async_trait;
 use log::info;
-use actix::prelude::*;
-
-/// Define message
-#[derive(Message)]
-#[rtype(result = "Result<(), crate::errors_define::Error>")]
-pub struct RegistryHandler{
-    pub command : ChatCommand,
-    pub handler : Box<dyn HandlerProtocolData>,
-}
 
 
-#[derive(PartialEq, Clone, Copy)]
+
+#[derive(PartialEq, Clone, Copy,Debug)]
 pub enum TcpServerState{
     INIT,
     RUNNING,
     STOPPED,
 }
 
-pub struct TcpServerActor{
+pub struct TcpServer  {
     // addr必须是 "ip:port"的格式
      addr: String,
-     factory:HandleProtocolFactory,
+     factory: HandleProtocolFactory,
      state: TcpServerState,
      all_conn_cache: HashMap<SocketAddr, ProtocolCacheData>,
 }
 
+pub struct TcpSocketConfig {
+    pub tcp_host: String,
+    pub tcp_port: String,
+}
 
-impl TcpServerActor{
+impl TcpSocketConfig {
+    pub fn init_from_env() -> Self {
+        dotenvy::dotenv().ok();
+
+        let tcp_host = env::var("TCP_HOST").expect("TCP_HOST is not set in .env file");
+
+        let tcp_port = env::var("TCP_PORT").expect("TCP_PORT is not set in .env file");
+
+        TcpSocketConfig { tcp_host, tcp_port }
+    }
+
+    pub fn get_url(&self) -> String {
+        format!("{}:{}", self.tcp_host, self.tcp_port)
+    }
+
+
+}
+
+impl TcpServer{
 
     pub fn new(addr:String, factory:HandleProtocolFactory )->Self{
-        TcpServerActor{
+        TcpServer{
             addr,
             factory,
             state: TcpServerState::INIT,
@@ -46,53 +63,40 @@ impl TcpServerActor{
     }
 
 
+    pub fn get_state(&self)->&TcpServerState{
+        &self.state
+    }
 
-}
+    // pub fn get_state_by_mut(&mut self)->&TcpServerState{
+    //     &self.state
+    // }
 
-impl Actor for TcpServerActor{
-
-    type Context = Context<Self>;
-
-    fn started(&mut self, ctx: &mut Self::Context) {
+    pub async fn start(&mut self){
 
         self.state = TcpServerState::RUNNING;
 
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .unwrap();
-
-        rt.block_on(
-            start_tcp_server(self)
-            )
-            .expect("start_tcp_server fail!");
+        start_server_accept(self).await;
 
     }
 
 
-    fn stopped(&mut self, _ctx: &mut Self::Context) {
-        self.state = TcpServerState::STOPPED;
-    }
 
-}
-
-
-
-/// Define handler for `RegistryHandler` message
-impl Handler<RegistryHandler> for TcpServerActor {
-
-    type Result = Result<(), crate::errors_define::Error>;
-
-    fn handle(&mut self, msg: RegistryHandler, ctx: &mut Context<Self>) -> Self::Result {
-        self.factory.registry_handler(msg.command,msg.handler)
+    pub fn stop(&mut self){
+        self.state=TcpServerState::STOPPED;
     }
 }
 
 
+pub struct ProtocolCacheData {
+    stream: TcpStream,
 
-async fn start_tcp_server(server: &mut TcpServerActor) ->tokio::io::Result<()>{
+    data: Option<Protocol>,
+}
 
-    let listener = TcpListener::bind(server.addr.clone()).await?;
+
+async fn start_server_accept(server: &mut TcpServer){
+
+    let listener = TcpListener::bind(server.addr.clone()).await.unwrap();
 
     while server.state == TcpServerState::RUNNING {
 
@@ -102,25 +106,21 @@ async fn start_tcp_server(server: &mut TcpServerActor) ->tokio::io::Result<()>{
 
     }
 
-    info!("############# TcpServerActor stopped! ############");
-
-    Ok(())
-
-}
-
-pub struct ProtocolCacheData {
-    stream: TcpStream,
-
-    data: Option<Protocol>,
 }
 
 
 pub async fn parse_tcp_stream(
     stream: TcpStream,
     address: SocketAddr,
+    // server: &mut TcpServer,
     all_cache: &mut HashMap<SocketAddr, ProtocolCacheData>,
-    factory: &HandleProtocolFactory,
+    factory: & HandleProtocolFactory,
 ) {
+
+    // let mut all_cache= &mut server.all_conn_cache;
+
+    // let factory = &server.factory;
+
     match all_cache.get_mut(&address) {
         Some(t) => match t.data {
             None => t.data = Some(Protocol::create_new()),
@@ -240,7 +240,7 @@ pub fn get_chat_vec()->Vec<u8>{
 // create factory for test
 pub fn create_factory()->HandleProtocolFactory{
     let mut factory = HandleProtocolFactory::new();
-    factory.registry_handler(ChatCommand::Chat,Box::new(TestChatHandler{}));
+    factory.registry_handler(ChatCommand::Chat, Box::new(TestChatHandler {}));
     factory
 }
 

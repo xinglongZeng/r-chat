@@ -1,9 +1,9 @@
 use crate::chat_protocol::{ChatCommand};
 use std::collections::HashMap;
+use std::ops::{Deref, DerefMut};
+use std::pin::Pin;
 use log::{debug, info};
 use async_trait::async_trait;
-use crate::errors_define::Error;
-use crate::errors_define::Error::HandlerRegistryFail;
 
 #[async_trait]
 pub trait HandlerProtocolData {
@@ -33,15 +33,13 @@ impl HandleProtocolFactory {
         }
     }
 
-    pub fn registry_handler(&mut self, a:ChatCommand , b: Box<dyn HandlerProtocolData> )->Result<(),Error>{
+    pub fn registry_handler(&mut self, a:ChatCommand , b: Box<dyn HandlerProtocolData> ){
 
         if self.all_handler.get(&a).is_some(){
-            let e = format!("ChatCommand:{:?} already exist! ",a);
-            return Err( HandlerRegistryFail(e));
+            panic!("ChatCommand:{:?} already exist! ",a);
         }
 
         self.all_handler.insert(a,b);
-        Ok(())
     }
 
 }

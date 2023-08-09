@@ -1,6 +1,7 @@
 pub enum Error {
 
-    UnknowError(String),
+    // 内部错误
+    InternalError(String),
 
 
     // handler注册失败
