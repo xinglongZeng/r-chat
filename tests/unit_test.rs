@@ -1,22 +1,30 @@
 use std::env;
+use actix::Actor;
 use async_trait::async_trait;
 use log::info;
 use r_chat::chat_protocol::{calculate_len_by_data, ChatCommand, ChatContent, ChatData, ChatFileContent, ChatTextContent, Protocol};
 use r_chat::net;
-use r_chat::net::{create_factory, get_chat_vec};
+use r_chat::net::{create_factory, get_chat_vec, RegistryHandler, TcpServerActor, TestChatHandler};
 use r_chat::protocol_factory::{HandleProtocolFactory, HandlerProtocolData};
 
-#[tokio::test]
-async fn test_start_tcp_socket(){
+#[test]
+ fn test_start_tcp_socket(){
 
     let factory = create_factory();
 
-    let addr="localhost:9999";
+    let addr="localhost:9999".to_string();
 
-    net::start_tcp_server(addr,&factory)
-        .await
-        .unwrap();
+    let server = TcpServerActor::new(addr,factory);
 
+    let addr= server.start();
+
+    let rh = RegistryHandler{
+        command:ChatCommand::Chat,
+        handler:Box::new(TestChatHandler{}),
+    };
+
+    // todo:
+    // addr.send(rh);
 
 }
 

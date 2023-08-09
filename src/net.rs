@@ -7,20 +7,104 @@ use crate::protocol_factory::{HandleProtocolFactory, HandlerProtocolData};
 use std::error::Error;
 use async_trait::async_trait;
 use log::info;
+use actix::prelude::*;
 
-pub async fn start_tcp_server<A: ToSocketAddrs>(addr: A , factory: &HandleProtocolFactory,)->tokio::io::Result<()>{
+/// Define message
+#[derive(Message)]
+#[rtype(result = "Result<(), crate::errors_define::Error>")]
+pub struct RegistryHandler{
+    pub command : ChatCommand,
+    pub handler : Box<dyn HandlerProtocolData>,
+}
 
-    let listener = TcpListener::bind(addr).await?;
 
-    let mut all_conn_cache: HashMap<SocketAddr, ProtocolCacheData> = HashMap::new();
+#[derive(PartialEq, Clone, Copy)]
+pub enum TcpServerState{
+    INIT,
+    RUNNING,
+    STOPPED,
+}
 
-    loop{
+pub struct TcpServerActor{
+    // addr必须是 "ip:port"的格式
+     addr: String,
+     factory:HandleProtocolFactory,
+     state: TcpServerState,
+     all_conn_cache: HashMap<SocketAddr, ProtocolCacheData>,
+}
+
+
+impl TcpServerActor{
+
+    pub fn new(addr:String, factory:HandleProtocolFactory )->Self{
+        TcpServerActor{
+            addr,
+            factory,
+            state: TcpServerState::INIT,
+            all_conn_cache: Default::default(),
+        }
+    }
+
+
+
+}
+
+impl Actor for TcpServerActor{
+
+    type Context = Context<Self>;
+
+    fn started(&mut self, ctx: &mut Self::Context) {
+
+        self.state = TcpServerState::RUNNING;
+
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+
+        rt.block_on(
+            start_tcp_server(self)
+            )
+            .expect("start_tcp_server fail!");
+
+    }
+
+
+    fn stopped(&mut self, _ctx: &mut Self::Context) {
+        self.state = TcpServerState::STOPPED;
+    }
+
+}
+
+
+
+/// Define handler for `RegistryHandler` message
+impl Handler<RegistryHandler> for TcpServerActor {
+
+    type Result = Result<(), crate::errors_define::Error>;
+
+    fn handle(&mut self, msg: RegistryHandler, ctx: &mut Context<Self>) -> Self::Result {
+        self.factory.registry_handler(msg.command,msg.handler)
+    }
+}
+
+
+
+async fn start_tcp_server(server: &mut TcpServerActor) ->tokio::io::Result<()>{
+
+    let listener = TcpListener::bind(server.addr.clone()).await?;
+
+    while server.state == TcpServerState::RUNNING {
 
         let (stream, address) = listener.accept().await.unwrap();
 
-        parse_tcp_stream(stream, address, &mut all_conn_cache, factory).await;
+        parse_tcp_stream(stream, address, &mut server.all_conn_cache, &server.factory).await;
 
     }
+
+    info!("############# TcpServerActor stopped! ############");
+
+    Ok(())
 
 }
 
@@ -58,9 +142,6 @@ pub async fn parse_tcp_stream(
     let cache = all_cache.get_mut(&address).unwrap();
 
     let mut remain=cache.stream.read(&mut buf).await.unwrap();
-    // cache.stream.read_buf(&mut buffer).await.unwrap();
-
-    // let mut remain = buf.len();
 
     let total_len = remain.clone();
 
@@ -129,7 +210,10 @@ pub async fn send_msg(stream: &mut TcpStream, data: &Vec<u8>) -> Result<(), Box<
     Ok(())
 }
 
-
+pub fn create_init_factory()->HandleProtocolFactory{
+    let factory = HandleProtocolFactory::new();
+    factory
+}
 
 /////////////////  todo: test
 pub fn get_chat_vec()->Vec<u8>{
@@ -160,7 +244,9 @@ pub fn create_factory()->HandleProtocolFactory{
     factory
 }
 
-struct TestChatHandler{
+
+
+pub struct TestChatHandler{
 
 }
 
