@@ -1,12 +1,10 @@
 use std::collections::HashMap;
 use std::{env, thread};
 use std::error::Error;
-use std::net::SocketAddr;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::{TcpListener, TcpStream, ToSocketAddrs};
+use std::io::{Read, Write};
+use std::net::{SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
 use crate::chat_protocol::{ChatCommand, ChatContent, ChatData, ChatFileContent, ChatTextContent, Protocol};
 use crate::protocol_factory::{HandleProtocolFactory, HandlerProtocolData};
-use async_trait::async_trait;
 use log::info;
 
 
@@ -69,11 +67,11 @@ impl TcpServer{
     //     &self.state
     // }
 
-    pub async fn start(&mut self){
+    pub fn start(&mut self){
 
         self.state = TcpServerState::RUNNING;
 
-        start_server_accept(self).await;
+        start_server_accept(self);
 
     }
 
@@ -92,32 +90,31 @@ pub struct ProtocolCacheData {
 }
 
 
-async fn start_server_accept(server: &mut TcpServer){
+fn start_server_accept(server: &mut TcpServer){
 
-    let listener = TcpListener::bind(server.addr.clone()).await.unwrap();
+    let listener = TcpListener::bind(server.addr.clone()).unwrap();
+
+    println!("##########  TcpServer started! ###########");
 
     while server.state == TcpServerState::RUNNING {
 
-        let (stream, address) = listener.accept().await.unwrap();
+        let (stream, address) = listener.accept().unwrap();
 
-        parse_tcp_stream(stream, address, &mut server.all_conn_cache, &server.factory).await;
+        parse_tcp_stream(stream, address, &mut server.all_conn_cache, &server.factory);
 
     }
+
+    println!("##########  TcpServer stopped! ###########");
 
 }
 
 
-async fn parse_tcp_stream(
+fn parse_tcp_stream(
     stream: TcpStream,
     address: SocketAddr,
-    // server: &mut TcpServer,
     all_cache: &mut HashMap<SocketAddr, ProtocolCacheData>,
     factory: & HandleProtocolFactory,
 ) {
-
-    // let mut all_cache= &mut server.all_conn_cache;
-
-    // let factory = &server.factory;
 
     match all_cache.get_mut(&address) {
         Some(t) => match t.data {
@@ -139,7 +136,7 @@ async fn parse_tcp_stream(
 
     let cache = all_cache.get_mut(&address).unwrap();
 
-    let mut remain=cache.stream.read(&mut buf).await.unwrap();
+    let mut remain=cache.stream.read(&mut buf).unwrap();
 
     let total_len = remain.clone();
 
@@ -157,7 +154,7 @@ async fn parse_tcp_stream(
         index += len.clone();
 
         if pkg.completion() {
-            handle_pkg(&pkg, factory).await;
+            handle_pkg(&pkg, factory);
         }
     }
 }
@@ -183,28 +180,24 @@ fn fill(pkg: &mut Protocol, all_bytes: &Vec<u8>, mut index: usize, total_len: us
 }
 
 
-async fn handle_pkg(pkg: &Protocol, factory: &HandleProtocolFactory) {
-    println!("{:?}", pkg);
-
+fn handle_pkg(pkg: &Protocol, factory: &HandleProtocolFactory) {
     // convert bytes to struct by type
     let data_type = pkg.data_type.as_ref().unwrap()[0].clone();
     let command = ChatCommand::to_self(data_type);
     let handler = factory.get_handler(&command);
-    handler.handle(pkg.data.as_ref().unwrap()).await;
+    handler.handle(pkg.data.as_ref().unwrap());
 }
 
 
-// 异步连接到指定地址
-pub async fn connect<A: ToSocketAddrs>(address: A) -> Result<TcpStream, Box<dyn Error>> {
-    let conn = TcpStream::connect(address).await?;
-
-    Ok(conn)
+// 连接到指定地址
+pub  fn connect<A: ToSocketAddrs>(address: A) ->std::io::Result<TcpStream> {
+    TcpStream::connect(address)
 }
 
 
-pub async fn send_msg(stream: &mut TcpStream, data: &Vec<u8>) -> Result<(), Box<dyn Error>> {
-    let _write_len = stream.write_all(data.as_slice()).await?;
-    stream.flush().await?;
+pub  fn send_msg(stream: &mut TcpStream, data: &Vec<u8>) -> Result<(), Box<dyn Error>> {
+    let _write_len = stream.write_all(data.as_slice())?;
+    stream.flush()?;
     Ok(())
 }
 
@@ -248,10 +241,10 @@ pub struct TestChatHandler{
 
 }
 
-#[async_trait]
+
 impl HandlerProtocolData for TestChatHandler{
-    async fn handle(&self, a: &Vec<u8>) {
+    fn handle(&self, a: &Vec<u8>) {
         let req: ChatData = bincode::deserialize(a).unwrap();
-        info!("TestChatHandler received data :{:?}  ", req);
+        println!("TestChatHandler received data :{:?}  ", req);
     }
 }

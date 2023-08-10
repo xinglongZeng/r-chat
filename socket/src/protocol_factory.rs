@@ -1,10 +1,8 @@
 use crate::chat_protocol::{ChatCommand};
 use std::collections::HashMap;
-use async_trait::async_trait;
 
-#[async_trait]
-pub trait HandlerProtocolData :Send+Sync{
-    async fn handle(&self, a: &Vec<u8>);
+pub trait HandlerProtocolData{
+     fn handle(&self, a: &Vec<u8>);
 }
 
 

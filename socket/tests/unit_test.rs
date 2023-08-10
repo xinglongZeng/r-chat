@@ -1,14 +1,11 @@
-use std::{env, thread, time};
-use std::pin::{Pin, pin};
-use std::thread::Thread;
+use std::{env};
 use actix::Actor;
 use socket::chat_protocol::{calculate_len_by_data, ChatCommand, Protocol};
 use socket::net;
-use socket::net::{create_factory, get_chat_vec, TcpServer, TcpServerState, TcpSocketConfig, TestChatHandler};
+use socket::net::{create_factory, get_chat_vec, TcpServer, TcpSocketConfig};
 
-#[tokio::test]
-// #[test]
-async fn test_start_tcp_socket()  {
+#[test]
+fn test_start_tcp_socket()  {
 
     let factory = create_factory();
 
@@ -16,14 +13,13 @@ async fn test_start_tcp_socket()  {
 
     let mut server = TcpServer::new(config.get_url(), factory);
 
-    server.start().await;
+    server.start();
 
 }
 
 
-// #[tokio::test]
-#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn test_send_msg(){
+#[test]
+fn test_send_msg(){
 
     let addr="localhost:19999";
 
@@ -47,9 +43,9 @@ async fn test_send_msg(){
         data: Some(data),
     };
 
-    let mut stream= net::connect(addr).await.unwrap();
+    let mut stream= net::connect(addr).unwrap();
 
-    net::send_msg(&mut stream, &protocol.to_vec()).await.unwrap();
+    net::send_msg(&mut stream, &protocol.to_vec()).unwrap();
 
 }
 
