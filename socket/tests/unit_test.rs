@@ -16,7 +16,7 @@ async fn test_start_tcp_socket()  {
 
     let mut server = TcpServer::new(config.get_url(), factory);
 
-    let _start_result = server.start().await;
+    server.start().await;
 
 }
 

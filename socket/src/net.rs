@@ -61,7 +61,7 @@ impl TcpServer{
     }
 
 
-    pub fn get_state(&self)->&TcpServerState{
+    pub fn get_state(&self) -> &TcpServerState {
         &self.state
     }
 

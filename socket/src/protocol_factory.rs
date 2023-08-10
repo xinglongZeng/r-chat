@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use async_trait::async_trait;
 
 #[async_trait]
-pub trait HandlerProtocolData {
+pub trait HandlerProtocolData :Send+Sync{
     async fn handle(&self, a: &Vec<u8>);
 }
 
