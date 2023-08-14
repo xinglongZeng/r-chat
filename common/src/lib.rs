@@ -1,12 +1,12 @@
-use std::env;
+use derive_more::Display;
 use serde::{Deserialize, Serialize};
+use std::{env, error};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct LoginReqData {
     pub account: String,
     pub pwd: String,
 }
-
 
 pub struct TcpSocketConfig {
     pub tcp_host: String,
@@ -27,5 +27,4 @@ impl TcpSocketConfig {
     pub fn get_url(&self) -> String {
         format!("{}:{}", self.tcp_host, self.tcp_port)
     }
-
 }

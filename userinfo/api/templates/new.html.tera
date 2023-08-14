@@ -1,7 +1,7 @@
 {% extends "layout.html.tera" %} {% block content %}
 <div class="row">
   <h4>New Post</h4>
-  <form action="/" method="post">
+  <form action="/insert" method="post">
     <div class="twelve columns">
       <input
         type="text"

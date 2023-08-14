@@ -1,8 +1,8 @@
 use crate::userinfo_dao;
 use ::entity::userinfo;
-use sea_orm::DbConn;
-use std::sync::Arc;
 use common::LoginReqData;
+use sea_orm::{DbConn, DbErr};
+use std::sync::Arc;
 
 pub struct Service {
     pub db: Arc<DbConn>,

@@ -11,5 +11,5 @@ userinfo={path="userinfo"}
 common={path = "common"}
 
 [workspace]
-members=[".","socket","userinfo","common"]
+members=[".","socket","userinfo","common","memory"]
 

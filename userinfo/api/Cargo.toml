@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 entity={path = "../entity"}
 service={path = "../service"}
+common={path = "../../common"}
 actix-files = "0.6"
 actix-http = "3"
 actix-rt = "2.7"
@@ -25,4 +26,5 @@ bincode="1.3.3"
 tokio = { version = "1", features = ["full"] }
 derive_more="0.99.17"
 async-trait="0.1.68"
-common={path = "../../common"}
+serde_json="1.0.104"
+

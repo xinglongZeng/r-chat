@@ -2,8 +2,8 @@ use ::entity::userinfo;
 use ::entity::userinfo::{Entity, Model};
 use sea_orm::ActiveValue::Set;
 use sea_orm::DbErr;
+use sea_orm::RuntimeErr::Internal;
 use sea_orm::*;
-
 
 pub struct Dao {}
 
@@ -53,7 +53,7 @@ impl Dao {
     }
 
     // find like name
-    pub async fn find_like_name(db: &DbConn, name: String) -> Result<Vec<Model>, DbErr> {
+    pub async fn find_like_name(db: &DbConn, name: &String) -> Result<Vec<Model>, DbErr> {
         Entity::find()
             .filter(userinfo::Column::Name.contains(name.as_str()))
             .all(db)
@@ -75,5 +75,16 @@ impl Dao {
         }
         .update(db)
         .await
+    }
+
+    pub async fn insert(db: &DbConn, param: Model) -> Result<Model, DbErr> {
+        let exist = Dao::find_like_name(db, &param.name).await;
+        if exist.is_ok() && exist.unwrap().len() > 0 {
+            return Err(DbErr::Custom(format!(
+                "name already exist ,name:{}",
+                param.name
+            )));
+        }
+        userinfo::ActiveModel::from(param).insert(db).await
     }
 }

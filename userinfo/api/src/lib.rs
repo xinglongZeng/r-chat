@@ -1,24 +1,26 @@
-use actix_web::{error, get, post, web, Error, HttpRequest, HttpResponse, Responder, Result, HttpServer, App, middleware};
-use service::{
-    sea_orm::{ DatabaseConnection},
-    userinfo_dao,
+use actix_web::{
+    error, get, middleware, post, web, App, Error, HttpRequest, HttpResponse, HttpServer,
+    Responder, Result,
 };
 use serde::{Deserialize, Serialize};
-use std::{env};
+use service::{sea_orm::DatabaseConnection, userinfo_dao};
+use std::env;
 
+use actix_files::Files as Fs;
 use actix_files::NamedFile;
+use actix_http::body::BoxBody;
 use actix_web::http::header::ContentType;
 use actix_web::http::StatusCode;
-use derive_more::Display;
-use log::{debug};
-use std::fmt::Debug;
-use std::sync::Arc;
-use listenfd::ListenFd;
-use tera::Tera;
 use common::TcpSocketConfig;
-use service::sea_orm::Database;
-use actix_files::Files as Fs;
-
+use derive_more::Display;
+use entity::userinfo;
+use entity::userinfo::Model;
+use listenfd::ListenFd;
+use log::debug;
+use service::sea_orm::{Database, DbErr};
+use std::fmt::{Debug, Display, Formatter};
+use std::sync::Arc;
+use tera::Tera;
 
 const PAGE_SIZE: u64 = 5;
 
@@ -35,7 +37,6 @@ pub struct PageParams {
     page_size: Option<u64>,
 }
 
-
 pub struct ServerEnvConfig {
     pub socket_config: TcpSocketConfig,
     web_host: String,
@@ -43,9 +44,8 @@ pub struct ServerEnvConfig {
     database_url: String,
 }
 
-impl ServerEnvConfig{
-    fn new()->Self{
-
+impl ServerEnvConfig {
+    fn new() -> Self {
         dotenvy::dotenv().ok();
 
         let tcp_host = env::var("TCP_HOST").expect("TCP_HOST is not set in .env file");
@@ -56,19 +56,14 @@ impl ServerEnvConfig{
 
         let socket_config = TcpSocketConfig { tcp_host, tcp_port };
 
-        ServerEnvConfig{
+        ServerEnvConfig {
             socket_config,
             web_host,
             web_port,
             database_url,
         }
-
     }
-
-
 }
-
-
 
 #[get("/")]
 async fn user_index(req: HttpRequest, data: web::Data<AppState>) -> Result<HttpResponse, Error> {
@@ -110,6 +105,20 @@ async fn user_index(req: HttpRequest, data: web::Data<AppState>) -> Result<HttpR
     Ok(HttpResponse::Ok().content_type("text/html").body(body))
 }
 
+#[get("/new")]
+async fn new(data: web::Data<AppState>) -> Result<HttpResponse, Error> {
+    let template = &data.templates;
+
+    // send page_data to html. 将分页数据传入html页面中
+    let mut ctx = tera::Context::new();
+
+    let body = template
+        .render("new.html.tera", &ctx)
+        .map_err(|m| error::ErrorInternalServerError(m))?;
+
+    Ok(HttpResponse::Ok().content_type("text/html").body(body))
+}
+
 async fn not_found(data: web::Data<AppState>, request: HttpRequest) -> Result<HttpResponse, Error> {
     let mut ctx = tera::Context::new();
     ctx.insert("uri", request.uri().path());
@@ -122,11 +131,8 @@ async fn not_found(data: web::Data<AppState>, request: HttpRequest) -> Result<Ht
     Ok(HttpResponse::Ok().content_type("text/html").body(body))
 }
 
-
-
-
 #[derive(Debug, Display, derive_more::Error)]
-enum MyError {
+pub enum MyError {
     #[display(fmt = "internal error")]
     InternalError,
 
@@ -158,24 +164,66 @@ impl error::ResponseError for MyError {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-struct UserInfoVo {
+pub struct UserInfoVo {
+    id: Option<i32>,
     name: String,
     pwd: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct UserInfo {
-    name: String,
-    pwd: String,
+impl From<Model> for UserInfoVo {
+    fn from(m: Model) -> Self {
+        UserInfoVo {
+            id: Some(m.id),
+            name: m.name,
+            pwd: m.pwd,
+        }
+    }
+}
+
+impl From<UserInfoVo> for Model {
+    fn from(value: UserInfoVo) -> Self {
+        Model {
+            id: if value.id.is_some() {
+                value.id.unwrap()
+            } else {
+                0
+            },
+            name: value.name,
+            pwd: value.pwd,
+        }
+    }
+}
+
+impl Responder for UserInfoVo {
+    type Body = BoxBody;
+
+    fn respond_to(self, req: &HttpRequest) -> HttpResponse<Self::Body> {
+        let body = serde_json::to_string(&self).unwrap();
+        // Create response and set content type
+        HttpResponse::Ok()
+            .content_type(ContentType::json())
+            .body(body)
+    }
 }
 
 // registry account
-#[post("/registry_account")]
-async fn registry_account(user_info: web::Json<UserInfo>) -> Result<String, MyError> {
-    debug!("registry_account data:{:?} ", user_info);
-    //todo:
-    Ok(format!("registry Successful! name:{}!", user_info.name))
-    //Err(MyError::ValidationError { field:  format!("name error ! name:{}!", user_info.name) })
+#[post("/insert")]
+async fn registry_account(
+    param: web::Form<UserInfoVo>,
+    data: web::Data<AppState>,
+) -> Result<UserInfoVo, MyError> {
+    debug!("invoke registry_account data:{:?} ", param);
+
+    let model = userinfo::Model::from(param.0);
+
+    // invoke service to query data . 调用service来查询分页数据
+    let result = userinfo_dao::Dao::insert(&data.conn, model).await;
+    match result {
+        Ok(t) => Ok(UserInfoVo::from(t)),
+        Err(e) => Err(MyError::ValidationError {
+            field: e.to_string(),
+        }),
+    }
 }
 
 #[get("/account_index")]
@@ -187,13 +235,11 @@ fn init(cfg: &mut web::ServiceConfig) {
     cfg.service(user_index);
     cfg.service(registry_account);
     cfg.service(account_index);
+    cfg.service(new);
 }
 
-
-
-
 #[actix_web::main]
-pub async fn api_start_web_server( ) -> std::io::Result<()> {
+pub async fn api_start_web_server() -> std::io::Result<()> {
     // set logger level to debug
     // env_logger::init_from_env(Env::default().default_filter_or("debug"));
 
@@ -243,7 +289,5 @@ pub async fn api_start_web_server( ) -> std::io::Result<()> {
         None => server.bind(&server_url)?,
     };
 
-
     server.run().await
-
 }
