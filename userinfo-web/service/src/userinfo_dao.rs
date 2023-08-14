@@ -8,12 +8,12 @@ use sea_orm::*;
 pub struct Dao {}
 
 impl Dao {
-    // find all userinfo
+    // find all userinfo-web
     pub async fn find_all(db: &DbConn) -> Result<Vec<Model>, DbErr> {
         Entity::find().all(db).await
     }
 
-    // find page in userinfo
+    // find page in userinfo-web
     pub async fn find_in_page(
         db: &DbConn,
         page: u64,

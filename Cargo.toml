@@ -7,9 +7,9 @@ edition = "2021"
 
 [dependencies]
 socket={path="socket"}
-userinfo={path="userinfo"}
+userinfo-web={path= "userinfo-web" }
 common={path = "common"}
 
 [workspace]
-members=[".","socket","userinfo","common","memory"]
+members=[".","socket", "userinfo-web","common","memory"]
 

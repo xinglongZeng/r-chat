@@ -274,7 +274,7 @@ pub async fn api_start_web_server() -> std::io::Result<()> {
     let mut server = HttpServer::new(move || {
         App::new()
             // mount dir static
-            .service(Fs::new("static", "./userinfo/api/static"))
+            .service(Fs::new("static", "./userinfo-web/api/static"))
             // app_data could share state for each thread
             .app_data(web::Data::new(state.clone()))
             .wrap(middleware::Logger::default())

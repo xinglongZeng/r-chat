@@ -5,44 +5,32 @@ use enum_index_derive::{EnumIndex, IndexEnum};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 
-
 static MAX_DATA_LEN: u64 = u32::MAX as u64;
 
-
-
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ChatData{
+pub struct ChatData {
     pub from_account: String,
     pub to_account: String,
-    pub contents:Vec<ChatContent>,
+    pub contents: Vec<ChatContent>,
 }
 
-
 #[derive(Debug, Serialize, Deserialize)]
-pub enum ChatContent{
+pub enum ChatContent {
     Text(ChatTextContent),
     File(ChatFileContent),
 }
 
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ChatTextContent {
-    pub text:String,
+    pub text: String,
 }
-
-
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ChatFileContent {
-    pub file_name:String,
-    pub data:Vec<u8>,
+    pub file_name: String,
+    pub url: Option<String>,
+    pub data: Option<Vec<u8>>,
 }
-
-
-
-
-
-
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Protocol {
@@ -71,7 +59,7 @@ pub enum ProtocolFieldNameEnum {
     data,
 }
 
-#[derive(Debug, Clone, EnumIndex, IndexEnum, Hash,Serialize, Deserialize)]
+#[derive(Debug, Clone, EnumIndex, IndexEnum, Hash, Serialize, Deserialize)]
 pub enum ChatCommand {
     LoginReq,
     LoginResp,
