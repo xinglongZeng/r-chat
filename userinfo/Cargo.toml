@@ -1,0 +1,16 @@
+[package]
+name = "userinfo"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+entity={path="entity"}
+service={path = "service"}
+api={path = "api"}
+actix-web = "4"
+actix = "0.13.0"
+tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
+dotenvy = "0.15.7"
+tera = "1.15.0"

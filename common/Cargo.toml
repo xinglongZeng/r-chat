@@ -1,15 +1,10 @@
 [package]
-name = "r-chat"
+name = "common"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-socket={path="socket"}
-userinfo={path="userinfo"}
-common={path = "common"}
-
-[workspace]
-members=[".","socket","userinfo","common"]
-
+serde = {version="1" , features = ["derive"]}
+dotenvy = "0.15.7"
