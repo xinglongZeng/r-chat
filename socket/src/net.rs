@@ -184,19 +184,3 @@ pub fn get_chat_vec() -> Vec<u8> {
 
     bincode::serialize(&c).unwrap()
 }
-
-// create factory for test
-pub fn create_factory() -> HandleProtocolFactory {
-    let mut factory = HandleProtocolFactory::new();
-    factory.registry_handler(ChatCommand::Chat, Box::new(TestChatHandler {}));
-    factory
-}
-
-pub struct TestChatHandler {}
-
-impl HandlerProtocolData for TestChatHandler {
-    fn handle(&self, a: &Vec<u8>) {
-        let req: ChatData = bincode::deserialize(a).unwrap();
-        println!("TestChatHandler received data :{:?}  ", req);
-    }
-}
