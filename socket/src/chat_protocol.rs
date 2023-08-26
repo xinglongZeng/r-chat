@@ -8,6 +8,32 @@ use std::fmt::Debug;
 static MAX_DATA_LEN: u64 = u32::MAX as u64;
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct P2pData {
+    pub biz: P2pDataType,
+    pub body: Vec<u8>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum P2pDataType {
+    GetIpV4Req,
+    GetIpV4Resp,
+    TrtConnectReq,
+    TrtConnectResp,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GetIpV4Req {
+    pub account: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GetIpV4Resp {
+    pub account: String,
+    // 符合 ip:port格式
+    pub ipv4: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ChatData {
     pub from_account: String,
     pub to_account: String,
@@ -61,10 +87,9 @@ pub enum ProtocolFieldNameEnum {
 
 #[derive(Debug, Clone, EnumIndex, IndexEnum, Hash, Serialize, Deserialize)]
 pub enum ChatCommand {
-    LoginReq,
-    LoginResp,
+    Login,
     Chat,
-    ReadyNat,
+    P2p,
 }
 
 impl PartialEq<Self> for ChatCommand {

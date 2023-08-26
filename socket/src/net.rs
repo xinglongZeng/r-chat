@@ -2,6 +2,7 @@ use crate::chat_protocol::{
     ChatCommand, ChatContent, ChatData, ChatFileContent, ChatTextContent, Protocol,
 };
 use crate::protocol_factory::{HandleProtocolFactory, HandlerProtocolData};
+use log::Level::Debug;
 use std::collections::HashMap;
 use std::error::Error;
 use std::io::{Read, Write};
@@ -20,6 +21,7 @@ pub struct TcpServer {
     factory: HandleProtocolFactory,
     state: TcpServerState,
     all_conn_cache: HashMap<SocketAddr, ProtocolCacheData>,
+    all_account_address_cache: HashMap<String, SocketAddr>,
 }
 
 impl TcpServer {
@@ -29,6 +31,7 @@ impl TcpServer {
             factory,
             state: TcpServerState::INIT,
             all_conn_cache: Default::default(),
+            all_account_address_cache: Default::default(),
         }
     }
 
@@ -64,7 +67,6 @@ fn start_server_accept(server: &mut TcpServer) {
 
     while server.state == TcpServerState::RUNNING {
         let (stream, address) = listener.accept().unwrap();
-
         parse_tcp_stream(stream, address, &mut server.all_conn_cache, &server.factory);
     }
 

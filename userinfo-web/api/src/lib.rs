@@ -3,7 +3,7 @@ use actix_web::{
     Responder, Result,
 };
 use serde::{Deserialize, Serialize};
-use service::{sea_orm::DatabaseConnection, userinfo_dao};
+use service::{sea_orm::DatabaseConnection, userinfo_dao, userinfo_service};
 use std::env;
 
 use actix_files::Files as Fs;
@@ -15,9 +15,11 @@ use common::TcpSocketConfig;
 use derive_more::Display;
 use entity::userinfo;
 use entity::userinfo::Model;
+use env_logger::Env;
 use listenfd::ListenFd;
 use log::debug;
 use service::sea_orm::{Database, DbErr};
+use service::userinfo_service::Service;
 use std::fmt::{Debug, Display, Formatter};
 use std::sync::Arc;
 use tera::Tera;
@@ -26,9 +28,9 @@ const PAGE_SIZE: u64 = 5;
 
 #[derive(Debug, Clone)]
 struct AppState {
-    templates: tera::Tera,
-    // conn: DatabaseConnection,
-    conn: Arc<DatabaseConnection>,
+    templates: Tera,
+    // conn: Arc<DatabaseConnection>,
+    user_service: Arc<Service>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -67,11 +69,7 @@ impl ServerEnvConfig {
 
 #[get("/")]
 async fn user_index(req: HttpRequest, data: web::Data<AppState>) -> Result<HttpResponse, Error> {
-    let conn = &data.conn;
-
     let template = &data.templates;
-
-    // userinfo_service::Dao::find_all(conn)
 
     // get page params from httpRequest. 从HttpRequest中获取分页参数
     let params = web::Query::<PageParams>::from_query(req.query_string()).unwrap();
@@ -83,7 +81,10 @@ async fn user_index(req: HttpRequest, data: web::Data<AppState>) -> Result<HttpR
     let page_size = params.page_size.unwrap_or(PAGE_SIZE);
 
     // invoke service to query data . 调用service来查询分页数据
-    let (page_data, num_page) = userinfo_dao::Dao::find_in_page(conn, page, page_size)
+    let (page_data, num_page) = data
+        .user_service
+        .dao
+        .find_in_page(page, page_size)
         .await
         .expect("Cannot find user_index in page");
 
@@ -110,7 +111,7 @@ async fn new(data: web::Data<AppState>) -> Result<HttpResponse, Error> {
     let template = &data.templates;
 
     // send page_data to html. 将分页数据传入html页面中
-    let mut ctx = tera::Context::new();
+    let ctx = tera::Context::new();
 
     let body = template
         .render("new.html.tera", &ctx)
@@ -147,12 +148,6 @@ pub enum MyError {
 }
 
 impl error::ResponseError for MyError {
-    fn error_response(&self) -> HttpResponse {
-        HttpResponse::build(self.status_code())
-            .insert_header(ContentType::html())
-            .body(self.to_string())
-    }
-
     fn status_code(&self) -> StatusCode {
         match *self {
             MyError::InternalError => StatusCode::INTERNAL_SERVER_ERROR,
@@ -160,6 +155,12 @@ impl error::ResponseError for MyError {
             MyError::Timeout => StatusCode::GATEWAY_TIMEOUT,
             MyError::ValidationError { .. } => StatusCode::BAD_REQUEST,
         }
+    }
+
+    fn error_response(&self) -> HttpResponse {
+        HttpResponse::build(self.status_code())
+            .insert_header(ContentType::html())
+            .body(self.to_string())
     }
 }
 
@@ -197,7 +198,7 @@ impl From<UserInfoVo> for Model {
 impl Responder for UserInfoVo {
     type Body = BoxBody;
 
-    fn respond_to(self, req: &HttpRequest) -> HttpResponse<Self::Body> {
+    fn respond_to(self, _req: &HttpRequest) -> HttpResponse<Self::Body> {
         let body = serde_json::to_string(&self).unwrap();
         // Create response and set content type
         HttpResponse::Ok()
@@ -217,7 +218,7 @@ async fn registry_account(
     let model = userinfo::Model::from(param.0);
 
     // invoke service to query data . 调用service来查询分页数据
-    let result = userinfo_dao::Dao::insert(&data.conn, model).await;
+    let result = data.user_service.dao.insert(model).await;
     match result {
         Ok(t) => Ok(UserInfoVo::from(t)),
         Err(e) => Err(MyError::ValidationError {
@@ -238,10 +239,11 @@ fn init(cfg: &mut web::ServiceConfig) {
     cfg.service(new);
 }
 
+
 #[actix_web::main]
-pub async fn api_start_web_server() -> std::io::Result<()> {
+pub async fn api_start_web_server_new(user_service: Arc<Service>) -> std::io::Result<()> {
     // set logger level to debug
-    // env_logger::init_from_env(Env::default().default_filter_or("debug"));
+    env_logger::init_from_env(Env::default().default_filter_or("debug"));
 
     // set config of env . 设置环境变量
     env::set_var("RUST_LOG", "debug");
@@ -251,15 +253,10 @@ pub async fn api_start_web_server() -> std::io::Result<()> {
 
     // get env vars   读取.env文件中的变量，相当于读取配置文件
     dotenvy::dotenv().ok();
-    let db_url = env::var("DATABASE_URL").expect("DATABASE_URL is not set in .env file");
+
     let host = env::var("WEB_HOST").expect("HOST is not set in .env file");
     let port = env::var("WEB_PORT").expect("PORT is not set in .env file");
     let server_url = format!("{host}:{port}");
-
-    // establish connection to database.   建立与数据的链接
-    let conn = Database::connect(&db_url).await.unwrap();
-
-    let arc_conn = Arc::new(conn);
 
     // load tera templates
     let templates = Tera::new(concat!(env!("CARGO_MANIFEST_DIR"), "/templates/**/*")).unwrap();
@@ -267,7 +264,7 @@ pub async fn api_start_web_server() -> std::io::Result<()> {
     // build app state. 构建app的state，以便各个线程共享AppState
     let state = AppState {
         templates,
-        conn: arc_conn.clone(),
+        user_service,
     };
 
     // create server

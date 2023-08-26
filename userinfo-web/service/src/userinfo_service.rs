@@ -1,11 +1,10 @@
-use crate::userinfo_dao;
+use crate::userinfo_dao::Dao;
 use ::entity::userinfo;
 use common::LoginReqData;
-use sea_orm::{DbConn, DbErr};
-use std::sync::Arc;
 
+#[derive(Debug)]
 pub struct Service {
-    pub db: Arc<DbConn>,
+    pub dao: Dao,
 }
 
 impl Service {
@@ -13,12 +12,11 @@ impl Service {
         &self,
         param: &LoginReqData,
     ) -> Result<Option<userinfo::Model>, String> {
-        let result = userinfo_dao::Dao::find_by_name_and_pwd(
-            self.db.as_ref(),
-            param.account.clone(),
-            param.pwd.clone(),
-        )
-        .await;
+        let result = self
+            .dao
+            .find_by_name_and_pwd(param.account.clone(), param.account.clone())
+            .await;
+
         match result {
             Ok(t) => Ok(t),
             Err(e) => Err(e.to_string()),
