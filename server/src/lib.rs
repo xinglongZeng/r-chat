@@ -1,4 +1,4 @@
-use common::TcpSocketConfig;
+use common::{LoginReqData, TcpSocketConfig};
 use log::{error, info};
 use socket::chat_protocol::P2pDataType::*;
 use socket::chat_protocol::{ChatCommand, ChatData, GetIpV4Req, P2pData};
@@ -6,6 +6,7 @@ use socket::net::TcpServer;
 use socket::protocol_factory::{HandleProtocolFactory, HandlerProtocolData};
 use std::sync::{Arc, Mutex};
 use std::{env, thread};
+use std::net::SocketAddr;
 use userinfo_web::sea_orm::Database;
 use userinfo_web::userinfo_dao::Dao;
 use userinfo_web::userinfo_service::Service;
@@ -31,8 +32,10 @@ pub fn start_server() {
         userinfo_web::start_webserver_userinfo(service_cp).expect("webserver start fail!")
     });
 
+    let service_cp2 = service.clone();
+    
     // 开启socket服务
-    let socket_task = thread::spawn(|| start_socket());
+    let socket_task = thread::spawn(|| start_socket(service_cp2));
 
     userinfo_web_task
         .join()
@@ -41,8 +44,9 @@ pub fn start_server() {
 }
 
 // 开启socket服务
-fn start_socket() {
-    let factory = create_factory();
+fn start_socket(user_service: Arc<Service>) {
+    
+    let factory = create_factory(user_service);
 
     let config = TcpSocketConfig::init_from_env();
 
@@ -52,19 +56,38 @@ fn start_socket() {
 }
 
 // 创建HandleProtocolFactory, 实际里面填充解析socket协议的handler
-fn create_factory() -> HandleProtocolFactory {
+fn create_factory(user_service: Arc<Service>) -> HandleProtocolFactory {
     let mut factory = HandleProtocolFactory::new();
-    factory.registry_handler(ChatCommand::Login, Box::new(ServerLoginHandler {}));
+    factory.registry_handler(ChatCommand::Login_req, Box::new(ServerLoginHandler {user_service}));
     factory.registry_handler(ChatCommand::Chat, Box::new(ServerChatHandler {}));
     factory.registry_handler(ChatCommand::P2p, Box::new(ServiceP2pHandler {}));
     factory
 }
-pub struct ServerLoginHandler {}
+pub struct ServerLoginHandler {
+    user_service: Arc<Service>,
+}
 
 impl HandlerProtocolData for ServerLoginHandler {
-    fn handle(&self, a: &Vec<u8>) {
+    fn handle(&self, address: SocketAddr, a: &Vec<u8>)->Option<Vec<u8>> {
         // todo : 处理登录
-        todo!()
+        let req: LoginReqData = bincode::deserialize(a).unwrap();
+
+        let op = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(async { self.user_service.find_by_account_and_pwd(&req).await.unwrap() });
+        
+        match op {
+            Some(t)=>{
+                //todo: t转换为 loginResp结构，然后再转换为vec<u8>
+                None
+            },
+            None=>{
+                None
+            },
+        }
+        
     }
 }
 
@@ -73,9 +96,10 @@ pub struct ServerChatHandler {}
 impl HandlerProtocolData for ServerChatHandler {
     // note: this function could do  what you want  it
     // for example ,you could record this ChatData in db. but this time ,just print it by info!.
-    fn handle(&self, a: &Vec<u8>) {
+    fn handle(&self,  address: SocketAddr,a: &Vec<u8>)->Option<Vec<u8>> {
         let req: ChatData = bincode::deserialize(a).unwrap();
         info!("OverrideChatHandler received data :{:?}  ", req);
+        None
     }
 }
 
@@ -95,7 +119,7 @@ impl ServiceP2pHandler {
 }
 
 impl HandlerProtocolData for ServiceP2pHandler {
-    fn handle(&self, a: &Vec<u8>) {
+    fn handle(&self,  address: SocketAddr,a: &Vec<u8>) {
         // todo: 获取biz类型
         let param: P2pData = bincode::deserialize(a).unwrap();
         match param.biz {

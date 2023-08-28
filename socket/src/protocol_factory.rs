@@ -1,8 +1,9 @@
 use crate::chat_protocol::{ChatCommand};
 use std::collections::HashMap;
+use std::net::SocketAddr;
 
 pub trait HandlerProtocolData{
-     fn handle(&self, a: &Vec<u8>);
+     fn handle(&self, address: SocketAddr ,a: &Vec<u8>)->Option<Vec<u8>>;
 }
 
 

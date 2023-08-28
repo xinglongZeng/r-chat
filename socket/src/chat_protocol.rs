@@ -87,7 +87,8 @@ pub enum ProtocolFieldNameEnum {
 
 #[derive(Debug, Clone, EnumIndex, IndexEnum, Hash, Serialize, Deserialize)]
 pub enum ChatCommand {
-    Login,
+    Login_req,
+    Login_resp,
     Chat,
     P2p,
 }
@@ -112,14 +113,11 @@ impl ChatCommand {
 }
 
 impl Protocol {
-    // todo: 序列化
     pub fn to_vec(&mut self) -> Vec<u8> {
         let mut v = vec![];
         v.append(self.version.as_mut().unwrap());
         v.append(self.data_type.as_mut().unwrap());
         v.append(self.data_len.as_mut().unwrap());
-        // v.append(self.source_id.as_mut().unwrap());
-        // v.append(self.target_id.as_mut().unwrap());
         v.append(self.data.as_mut().unwrap());
         v
     }
@@ -129,8 +127,6 @@ impl Protocol {
             version: None,
             data_type: None,
             data_len: None,
-            // source_id: None,
-            // target_id: None,
             data: None,
         }
     }
@@ -152,8 +148,6 @@ impl Protocol {
             ProtocolFieldNameEnum::version,
             ProtocolFieldNameEnum::data_type,
             ProtocolFieldNameEnum::data_len,
-            // ProtocolFieldNameEnum::source_id,
-            // ProtocolFieldNameEnum::target_id,
             ProtocolFieldNameEnum::data,
         ]
     }
@@ -161,7 +155,6 @@ impl Protocol {
     // 检查指定字段的数据是否填充完整
     pub fn check_field_fill(&self, field_key: &ProtocolFieldNameEnum) -> bool {
         let field = self.get_field(field_key);
-
         return field.is_some() && field.unwrap().len() == self.get_field_usize(field_key);
     }
 
@@ -171,8 +164,6 @@ impl Protocol {
             ProtocolFieldNameEnum::version => self.version.as_ref(),
             ProtocolFieldNameEnum::data_type => self.data_type.as_ref(),
             ProtocolFieldNameEnum::data_len => self.data_len.as_ref(),
-            // ProtocolFieldNameEnum::source_id => self.source_id.as_ref(),
-            // ProtocolFieldNameEnum::target_id => self.target_id.as_ref(),
             ProtocolFieldNameEnum::data => self.data.as_ref(),
             _ => panic!("can not support field name : {field_name} "),
         };
@@ -217,8 +208,6 @@ impl Protocol {
                     ProtocolFieldNameEnum::version => self.version = v,
                     ProtocolFieldNameEnum::data_type => self.data_type = v,
                     ProtocolFieldNameEnum::data_len => self.data_len = v,
-                    // ProtocolFieldNameEnum::source_id => self.source_id = v,
-                    // ProtocolFieldNameEnum::target_id => self.target_id = v,
                     ProtocolFieldNameEnum::data => self.data = v,
                     _ => {}
                 }
@@ -232,8 +221,6 @@ impl Protocol {
             ProtocolFieldNameEnum::version => self.version.as_mut(),
             ProtocolFieldNameEnum::data_type => self.data_type.as_mut(),
             ProtocolFieldNameEnum::data_len => self.data_len.as_mut(),
-            // ProtocolFieldNameEnum::source_id => self.source_id.as_mut(),
-            // ProtocolFieldNameEnum::target_id => self.target_id.as_mut(),
             ProtocolFieldNameEnum::data => self.data.as_mut(),
             _ => panic!("can not support field name : {field_name} ."),
         };

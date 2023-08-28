@@ -4,6 +4,7 @@ use socket::net;
 use socket::net::{get_chat_vec, TcpServer};
 use socket::protocol_factory::{HandleProtocolFactory, HandlerProtocolData};
 use std::env;
+use std::net::SocketAddr;
 
 #[test]
 fn test_start_tcp_socket() {
@@ -55,7 +56,7 @@ pub fn create_factory() -> HandleProtocolFactory {
 pub struct TestChatHandler {}
 
 impl HandlerProtocolData for TestChatHandler {
-    fn handle(&self, a: &Vec<u8>) {
+    fn handle(&self, address: SocketAddr, a: &Vec<u8>) {
         let req: ChatData = bincode::deserialize(a).unwrap();
         println!("TestChatHandler received data :{:?}  ", req);
     }

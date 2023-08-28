@@ -2,7 +2,7 @@ use crate::chat_protocol::{
     ChatCommand, ChatContent, ChatData, ChatFileContent, ChatTextContent, Protocol,
 };
 use crate::protocol_factory::{HandleProtocolFactory, HandlerProtocolData};
-use log::Level::Debug;
+use log::warn;
 use std::collections::HashMap;
 use std::error::Error;
 use std::io::{Read, Write};
@@ -21,7 +21,6 @@ pub struct TcpServer {
     factory: HandleProtocolFactory,
     state: TcpServerState,
     all_conn_cache: HashMap<SocketAddr, ProtocolCacheData>,
-    all_account_address_cache: HashMap<String, SocketAddr>,
 }
 
 impl TcpServer {
@@ -31,7 +30,6 @@ impl TcpServer {
             factory,
             state: TcpServerState::INIT,
             all_conn_cache: Default::default(),
-            all_account_address_cache: Default::default(),
         }
     }
 
@@ -117,7 +115,17 @@ fn parse_tcp_stream(
         index += len.clone();
 
         if pkg.completion() {
-            handle_pkg(&pkg, factory);
+            let handle_result = handle_pkg(&pkg, address.clone(), factory);
+            match handle_result {
+                None => {}
+                Some(t) => {
+                    // 使用stream发送
+                    let send_result = cache.stream.write_all(t.as_slice());
+                    if send_result.is_err() {
+                        warn!("send data to socket:{}  fail!", address.clone());
+                    }
+                }
+            }
         }
     }
 }
@@ -141,12 +149,16 @@ fn fill(pkg: &mut Protocol, all_bytes: &Vec<u8>, mut index: usize, total_len: us
     return index;
 }
 
-fn handle_pkg(pkg: &Protocol, factory: &HandleProtocolFactory) {
+fn handle_pkg(
+    pkg: &Protocol,
+    address: SocketAddr,
+    factory: &HandleProtocolFactory,
+) -> Option<Vec<u8>> {
     // convert bytes to struct by type
     let data_type = pkg.data_type.as_ref().unwrap()[0].clone();
     let command = ChatCommand::to_self(data_type);
     let handler = factory.get_handler(&command);
-    handler.handle(pkg.data.as_ref().unwrap());
+    handler.handle(address, pkg.data.as_ref().unwrap())
 }
 
 // 连接到指定地址
