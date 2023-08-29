@@ -1,9 +1,5 @@
 #   practice rust with chat
 ## features:
-    1. async socket 
-    2. web server
-    3. nat
-
-
-changeinfo:
-    2023-08-10: change async to sync
+    1. ~~async~~ sync socket (finish)
+    2. web server (processing)
+    3. nat (processing)
