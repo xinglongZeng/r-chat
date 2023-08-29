@@ -60,7 +60,10 @@ fn create_factory(user_service: Arc<Service>) -> HandleProtocolFactory {
     let mut factory = HandleProtocolFactory::new();
     factory.registry_handler(
         ChatCommand::Login_req,
-        Box::new(ServerLoginHandler { user_service }),
+        Box::new(ServerLoginHandler {
+            user_service,
+            login_record: Arc::new(Default::default()),
+        }),
     );
     factory.registry_handler(ChatCommand::Chat, Box::new(ServerChatHandler {}));
     factory.registry_handler(ChatCommand::P2p, Box::new(ServiceP2pHandler {}));
