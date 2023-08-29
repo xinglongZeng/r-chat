@@ -7,6 +7,13 @@ pub struct LoginReqData {
     pub pwd: String,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct LoginRespData {
+    pub user_id: i32,
+    pub account: String,
+    pub token: String,
+}
+
 pub struct TcpSocketConfig {
     pub tcp_host: String,
     pub tcp_port: String,
