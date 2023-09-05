@@ -1,4 +1,5 @@
-use common::{LoginReqData, LoginRespData, TcpSocketConfig};
+use common::biz_module::{LoginReqData, LoginRespData};
+use common::config::TcpSocketConfig;
 use log::{error, info, warn};
 use socket::chat_protocol::P2pDataType::*;
 use socket::chat_protocol::{ChatCommand, ChatData, GetIpV4Req, P2pData};
