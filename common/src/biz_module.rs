@@ -1,29 +1,45 @@
+use crate::login_module::LoginModule;
 use crate::socket_module::Protocol;
 use crate::{Module, ModuleEngine, ModuleNameEnum};
 use enum_index::IndexEnum;
 use enum_index_derive::{EnumIndex, IndexEnum};
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::any::Any;
+use std::rc::Weak;
 
-pub struct DefaultBizModule {
-    share: Arc<ModuleEngine>,
+pub struct DefaultBizModule<T> {
+    share: Weak<ModuleEngine<T>>,
 }
 
-impl Module for DefaultBizModule {
+impl<T> Module for DefaultBizModule<T> {
     fn get_module_name() -> ModuleNameEnum {
         ModuleNameEnum::Biz
     }
 }
 
-impl DefaultBizModule {
+impl<T> DefaultBizModule<T> {
     fn handle_login(&self, data: &Vec<u8>) {
         let login_data: BizLoginData = bincode::deserialize(data).unwrap();
+
+        // 通过
+        let any_module = self
+            .share
+            .upgrade()
+            .unwrap()
+            .all_module
+            .get(&ModuleNameEnum::Login)
+            .unwrap() as &dyn Any;
+
+        let login_module = any_module.downcast_ref::<dyn LoginModule>().unwrap();
+
         match login_data.login_type {
             LoginTypeEnum::Req => {
-                // todo:处理登录请求
+                //  处理登录请求
+                login_module.handle_login_req(login_data.data);
             }
             LoginTypeEnum::Resp => {
-                // todo：登录登入响应
+                // 登录登入响应
+                login_module.handle_login_resp(login_data.data);
             }
         }
     }
@@ -72,19 +88,19 @@ impl BizTypeEnum {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct BizLoginData {
+pub struct BizLoginData {
     login_type: LoginTypeEnum,
     data: LoginDataEnum,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-enum LoginDataEnum {
+pub enum LoginDataEnum {
     ReqData(LoginReqData),
     RespData(LoginRespData),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-enum LoginTypeEnum {
+pub enum LoginTypeEnum {
     Req,
     Resp,
 }
