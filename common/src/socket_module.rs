@@ -15,7 +15,7 @@ use std::sync::{Arc, RwLock};
 
 static MAX_DATA_LEN: u64 = u32::MAX as u64;
 
-trait SocketModule<T: Any + Module + Sized>: Module {
+trait SocketModule<T: Any + Module + Sized + 'static>: Module {
     // 发送字节数据到指定的地址
     fn send_bytes(&self, addr: SocketAddr, data: Vec<u8>) -> Result<(), Error>;
 
@@ -29,19 +29,19 @@ trait SocketModule<T: Any + Module + Sized>: Module {
     fn start(&mut self, share: Arc<ModuleEngine<T>>) -> Result<(), Error>;
 }
 
-struct DefaultSocketModule<T: Any + Module + Sized> {
+struct DefaultSocketModule<T: Any + Module + Sized + 'static> {
     share: Weak<ModuleEngine<T>>,
     cache: Arc<HashMap<SocketAddr, ProtocolCacheData>>,
     state: SocketModuleState,
 }
 
-impl<T: Any + Module + Sized> Module for DefaultSocketModule<T> {
+impl<T: Any + Module + Sized + 'static> Module for DefaultSocketModule<T> {
     fn get_module_name() -> ModuleNameEnum {
         ModuleNameEnum::Socket
     }
 }
 
-impl<T: Any + Module + Sized> SocketModule<T> for DefaultSocketModule<T> {
+impl<T: Any + Module + Sized + 'static> SocketModule<T> for DefaultSocketModule<T> {
     fn send_bytes(&self, addr: SocketAddr, data: Vec<u8>) -> Result<(), Error> {
         todo!()
     }

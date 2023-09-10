@@ -7,17 +7,17 @@ use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::rc::Weak;
 
-pub struct DefaultBizModule<T: Any + Module + Sized> {
+pub struct DefaultBizModule<T: Any + Module + Sized + 'static> {
     share: Weak<ModuleEngine<T>>,
 }
 
-impl<T: Any + Module + Sized> Module for DefaultBizModule<T> {
+impl<T: Any + Module + Sized + 'static> Module for DefaultBizModule<T> {
     fn get_module_name() -> ModuleNameEnum {
         ModuleNameEnum::Biz
     }
 }
 
-impl<T: Any + Module + Sized> DefaultBizModule<T> {
+impl<T: Any + Module + Sized + 'static> DefaultBizModule<T> {
     fn handle_login(&self, data: &Vec<u8>) {
         let login_data: BizLoginData = bincode::deserialize(data).unwrap();
 

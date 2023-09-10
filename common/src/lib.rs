@@ -17,7 +17,7 @@ pub trait Module {
     fn get_module_name() -> ModuleNameEnum;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq, Hash)]
 pub enum ModuleNameEnum {
     Socket,
     Biz,
@@ -28,12 +28,11 @@ pub enum ModuleNameEnum {
     Login,
 }
 
-struct ModuleEngine<T: Any + Module+Sized> {
+struct ModuleEngine<T: Any + Module + Sized + 'static> {
     all_module: HashMap<ModuleNameEnum, Box<T>>,
 }
 
-impl<T: Any + Module+Sized> ModuleEngine<T> {
-    
+impl<T: Any + Module + Sized + 'static> ModuleEngine<T> {
     fn new(all_module: HashMap<ModuleNameEnum, Box<T>>) -> Self {
         ModuleEngine { all_module }
     }

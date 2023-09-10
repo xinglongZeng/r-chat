@@ -25,7 +25,7 @@ trait ChatModule: Module {
     fn find_chat_history(&self, account_a: String, account_b: String) -> Option<Vec<ChatData>>;
 }
 
-struct DefaultClientChatModule<T: Any + Module + Sized> {
+struct DefaultClientChatModule<T: Any + Module + Sized + 'static> {
     share: Weak<ModuleEngine<T>>,
     // 读写锁，存储对方账户与socket的映射关系
     connected_accounts: RwLock<HashMap<String, SocketAddr>>,
@@ -37,7 +37,7 @@ impl<T: Any + Module + Sized> Module for DefaultClientChatModule<T> {
     }
 }
 
-impl<T: Any + Module + Sized> ChatModule for DefaultClientChatModule<T> {
+impl<T: Any + Module + Sized + 'static> ChatModule for DefaultClientChatModule<T> {
     fn sendMsg(&self, from_account: String, to_account: String, msg: String) -> Result<(), Error> {
         todo!()
         // 1. 根据 to_account检查是否有对应的socket链接

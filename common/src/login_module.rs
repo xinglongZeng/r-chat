@@ -1,5 +1,6 @@
 use crate::biz_module::{LoginDataEnum, LoginRespData};
 use crate::{Module, ModuleEngine, ModuleNameEnum};
+use std::any::Any;
 use std::fmt::Error;
 use std::fs;
 use std::fs::File;
@@ -21,7 +22,7 @@ pub trait LoginModule: Module {
     fn check_token_timeout(&self) -> Result<bool, Error>;
 }
 
-struct DefaultClientLoginModule<T> {
+struct DefaultClientLoginModule<T: Any + Module + Sized + 'static> {
     share: Weak<ModuleEngine<T>>,
     // 账户信息存储路径
     save_path: String,
@@ -29,13 +30,13 @@ struct DefaultClientLoginModule<T> {
     cache_account_info: Option<LoginRespData>,
 }
 
-impl<T> Module for DefaultClientLoginModule<T> {
+impl<T: Any + Module + Sized + 'static> Module for DefaultClientLoginModule<T> {
     fn get_module_name() -> ModuleNameEnum {
         ModuleNameEnum::Biz
     }
 }
 
-impl<T> LoginModule for DefaultClientLoginModule<T> {
+impl<T: Any + Module + Sized + 'static> LoginModule for DefaultClientLoginModule<T> {
     fn handle_login_resp(&mut self, resp: LoginDataEnum) {
         match resp {
             LoginDataEnum::RespData(t) => {

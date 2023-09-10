@@ -3,7 +3,7 @@ use std::fmt::Error;
 use std::sync::Arc;
 
 // todo: 存取数据的格式和逻辑
-trait StorageModule<T: Module + Sized>: Module {
+trait StorageModule<T: Module + Sized + 'static>: Module {
     // 存数据 todo: 入参
     fn storage_data(share: Arc<ModuleEngine<T>>) -> Result<(), Error>;
 
