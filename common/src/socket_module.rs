@@ -5,46 +5,56 @@ use derive_more::Display;
 use enum_index_derive::{EnumIndex, IndexEnum};
 use log::info;
 use serde::{Deserialize, Serialize};
+use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::Error;
 use std::io::Read;
 use std::net::{SocketAddr, TcpListener, TcpStream};
-use std::sync::Arc;
+use std::rc::Weak;
+use std::sync::{Arc, RwLock};
 
 static MAX_DATA_LEN: u64 = u32::MAX as u64;
 
-trait SocketModule: Module {
+trait SocketModule<T: Any + Module + Sized>: Module {
     // 发送字节数据到指定的地址
-    fn send_bytes(
-        &self,
-        share: Arc<ModuleEngine>,
-        addr: SocketAddr,
-        data: Vec<u8>,
-    ) -> Result<(), Error>;
+    fn send_bytes(&self, addr: SocketAddr, data: Vec<u8>) -> Result<(), Error>;
 
     // 指定地址的连接是否存在
-    fn check_connected(&self, share: Arc<ModuleEngine>, addr: SocketAddr) -> bool;
+    fn check_connected(&self, addr: SocketAddr) -> bool;
 
     // 查看当前SocketModule的状态
-    fn check_socket_module_state(&self, share: Arc<ModuleEngine>) -> SocketModuleState;
+    fn check_socket_module_state(&self) -> SocketModuleState;
 
     // 启动,监听指定端口
-    fn start(&mut self, share: &Arc<ModuleEngine>) -> Result<(), Error>;
+    fn start(&mut self, share: Arc<ModuleEngine<T>>) -> Result<(), Error>;
 }
 
-struct DefaultSocketModule {
+struct DefaultSocketModule<T: Any + Module + Sized> {
+    share: Weak<ModuleEngine<T>>,
     cache: Arc<HashMap<SocketAddr, ProtocolCacheData>>,
     state: SocketModuleState,
 }
 
-impl Module for DefaultSocketModule {
+impl<T: Any + Module + Sized> Module for DefaultSocketModule<T> {
     fn get_module_name() -> ModuleNameEnum {
         ModuleNameEnum::Socket
     }
 }
 
-impl SocketModule for DefaultSocketModule {
-    fn start(&mut self, biz: &Arc<DefaultBizModule>) -> Result<(), Error> {
+impl<T: Any + Module + Sized> SocketModule<T> for DefaultSocketModule<T> {
+    fn send_bytes(&self, addr: SocketAddr, data: Vec<u8>) -> Result<(), Error> {
+        todo!()
+    }
+
+    fn check_connected(&self, addr: SocketAddr) -> bool {
+        todo!()
+    }
+
+    fn check_socket_module_state(&self) -> SocketModuleState {
+        todo!()
+    }
+
+    fn start(&mut self, share: Arc<ModuleEngine<T>>) -> Result<(), Error> {
         // todo:
 
         // 读取配置文件，获取要监听的端口和地址
@@ -60,29 +70,17 @@ impl SocketModule for DefaultSocketModule {
 
         while self.state == SocketModuleState::RUNNING {
             let (stream, address) = listener.accept().unwrap();
-            parse_tcp_stream(stream, address, &mut self.cache, biz);
+            parse_tcp_stream(
+                stream,
+                address,
+                &mut Arc::clone(&self.cache),
+                Arc::clone(&self.share),
+            );
         }
 
         println!("##########  DefaultSocketModule stopped! ###########");
 
         Ok(())
-    }
-
-    fn send_bytes(
-        &self,
-        share: Arc<ModuleEngine>,
-        addr: SocketAddr,
-        data: Vec<u8>,
-    ) -> Result<(), Error> {
-        todo!()
-    }
-
-    fn check_connected(&self, share: Arc<ModuleEngine>, addr: SocketAddr) -> bool {
-        todo!()
-    }
-
-    fn check_socket_module_state(&self, share: Arc<ModuleEngine>) -> SocketModuleState {
-        todo!()
     }
 }
 
@@ -288,11 +286,11 @@ pub struct ProtocolCacheData {
     data: Option<Protocol>,
 }
 
-fn parse_tcp_stream(
+fn parse_tcp_stream<T: Any + Module + Sized>(
     stream: TcpStream,
     address: SocketAddr,
-    all_cache: &mut HashMap<SocketAddr, ProtocolCacheData>,
-    biz: &Arc<DefaultBizModule>,
+    all_cache: &mut Arc<HashMap<SocketAddr, ProtocolCacheData>>,
+    share: Arc<DefaultBizModule<T>>,
 ) {
     match all_cache.get_mut(&address) {
         Some(t) => match t.data {
@@ -332,7 +330,7 @@ fn parse_tcp_stream(
         index += len.clone();
 
         if pkg.completion() {
-            biz.handle_pkg(&pkg);
+            share.handle_pkg(&pkg);
         }
     }
 }
