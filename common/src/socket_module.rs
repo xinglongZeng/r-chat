@@ -26,11 +26,11 @@ trait SocketModule<T: Any + Module + Sized + 'static>: Module {
     fn check_socket_module_state(&self) -> SocketModuleState;
 
     // 启动,监听指定端口
-    fn start(&mut self, share: Arc<ModuleEngine<T>>) -> Result<(), Error>;
+    fn start(&mut self) -> Result<(), Error>;
 }
 
 struct DefaultSocketModule<T: Any + Module + Sized + 'static> {
-    share: Weak<ModuleEngine<T>>,
+    default_biz: Arc<DefaultBizModule<T>>,
     cache: Arc<HashMap<SocketAddr, ProtocolCacheData>>,
     state: SocketModuleState,
 }
@@ -54,7 +54,7 @@ impl<T: Any + Module + Sized + 'static> SocketModule<T> for DefaultSocketModule<
         todo!()
     }
 
-    fn start(&mut self, share: Arc<ModuleEngine<T>>) -> Result<(), Error> {
+    fn start(&mut self) -> Result<(), Error> {
         // todo:
 
         // 读取配置文件，获取要监听的端口和地址
@@ -74,7 +74,7 @@ impl<T: Any + Module + Sized + 'static> SocketModule<T> for DefaultSocketModule<
                 stream,
                 address,
                 &mut Arc::clone(&self.cache),
-                Arc::clone(&self.share),
+                Arc::clone(&self.default_biz),
             );
         }
 
@@ -290,7 +290,7 @@ fn parse_tcp_stream<T: Any + Module + Sized>(
     stream: TcpStream,
     address: SocketAddr,
     all_cache: &mut Arc<HashMap<SocketAddr, ProtocolCacheData>>,
-    share: Arc<DefaultBizModule<T>>,
+    default_biz: Arc<DefaultBizModule<T>>,
 ) {
     match all_cache.get_mut(&address) {
         Some(t) => match t.data {
@@ -330,7 +330,7 @@ fn parse_tcp_stream<T: Any + Module + Sized>(
         index += len.clone();
 
         if pkg.completion() {
-            share.handle_pkg(&pkg);
+            default_biz.handle_pkg(&pkg);
         }
     }
 }
