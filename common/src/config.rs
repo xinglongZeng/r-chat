@@ -20,3 +20,15 @@ impl TcpSocketConfig {
         format!("{}:{}", self.tcp_host, self.tcp_port)
     }
 }
+
+pub struct ClientDefaultConfig {
+    pub account_save_path:String,
+}
+
+impl ClientDefaultConfig{
+    pub fn init_from_env()->Self{
+        dotenvy::dotenv().ok();
+        let account_save_path = env::var("CLIENT_ACCOUNT_SAVE_PATH").expect("CLIENT_ACCOUNT_SAVE_PATH is not set in .env file");
+        ClientDefaultConfig{account_save_path}
+    }
+}

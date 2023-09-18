@@ -1,21 +1,20 @@
 use crate::biz_module::DefaultBizModule;
 use crate::config::TcpSocketConfig;
-use crate::{Module, ModuleEngine, ModuleNameEnum};
+use crate::{ModuleActorEngine, ModuleEngine};
 use derive_more::Display;
 use enum_index_derive::{EnumIndex, IndexEnum};
 use log::info;
 use serde::{Deserialize, Serialize};
-use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::Error;
 use std::io::Read;
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::rc::Weak;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 static MAX_DATA_LEN: u64 = u32::MAX as u64;
 
-trait SocketModule<T: Any + Module + Sized + 'static>: Module {
+pub trait SocketModule {
     // 发送字节数据到指定的地址
     fn send_bytes(&self, addr: SocketAddr, data: Vec<u8>) -> Result<(), Error>;
 
@@ -29,19 +28,14 @@ trait SocketModule<T: Any + Module + Sized + 'static>: Module {
     fn start(&mut self) -> Result<(), Error>;
 }
 
-struct DefaultSocketModule<T: Any + Module + Sized + 'static> {
-    default_biz: Arc<DefaultBizModule<T>>,
+struct DefaultSocketModule<> {
+    // share: Weak<Box<ModuleEngine>>,
+    share: Arc<ModuleActorEngine>,
     cache: Arc<HashMap<SocketAddr, ProtocolCacheData>>,
     state: SocketModuleState,
 }
 
-impl<T: Any + Module + Sized + 'static> Module for DefaultSocketModule<T> {
-    fn get_module_name() -> ModuleNameEnum {
-        ModuleNameEnum::Socket
-    }
-}
-
-impl<T: Any + Module + Sized + 'static> SocketModule<T> for DefaultSocketModule<T> {
+impl SocketModule for DefaultSocketModule {
     fn send_bytes(&self, addr: SocketAddr, data: Vec<u8>) -> Result<(), Error> {
         todo!()
     }
@@ -55,8 +49,6 @@ impl<T: Any + Module + Sized + 'static> SocketModule<T> for DefaultSocketModule<
     }
 
     fn start(&mut self) -> Result<(), Error> {
-        // todo:
-
         // 读取配置文件，获取要监听的端口和地址
         let config = TcpSocketConfig::init_from_env();
 
@@ -74,7 +66,7 @@ impl<T: Any + Module + Sized + 'static> SocketModule<T> for DefaultSocketModule<
                 stream,
                 address,
                 &mut Arc::clone(&self.cache),
-                Arc::clone(&self.default_biz),
+                &self.share.upgrade().unwrap().biz,
             );
         }
 
@@ -286,11 +278,11 @@ pub struct ProtocolCacheData {
     data: Option<Protocol>,
 }
 
-fn parse_tcp_stream<T: Any + Module + Sized>(
+fn parse_tcp_stream(
     stream: TcpStream,
     address: SocketAddr,
     all_cache: &mut Arc<HashMap<SocketAddr, ProtocolCacheData>>,
-    default_biz: Arc<DefaultBizModule<T>>,
+    default_biz: &Box<DefaultBizModule>,
 ) {
     match all_cache.get_mut(&address) {
         Some(t) => match t.data {

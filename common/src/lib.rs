@@ -1,5 +1,14 @@
+use crate::biz_module::DefaultBizModule;
+use crate::chat_module::ChatModule;
+use crate::login_module::{LoginModule, TestClientLoginActor, TestLoginActor};
+use crate::p2p_module::P2pModule;
+use crate::socket_module::SocketModule;
+use crate::storage_module::StorageModule;
+use crate::ui_module::UiModule;
+use actix::{Actor, Addr, Context};
 use std::any::Any;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 pub mod biz_module;
 pub mod chat_module;
@@ -7,15 +16,8 @@ pub mod config;
 pub mod login_module;
 pub mod p2p_module;
 pub mod socket_module;
-pub mod storge_module;
+pub mod storage_module;
 pub mod ui_module;
-
-/**
-模块抽象
-**/
-pub trait Module {
-    fn get_module_name() -> ModuleNameEnum;
-}
 
 #[derive(Debug, Eq, PartialEq, Hash)]
 pub enum ModuleNameEnum {
@@ -28,25 +30,19 @@ pub enum ModuleNameEnum {
     Login,
 }
 
-struct ModuleEngine<T: Any + Module + Sized + 'static> {
-    all_module: HashMap<ModuleNameEnum, Box<T>>,
+trait CommonModule {
+    fn handle_byte_on_socket(&self, bytes: Vec<u8>) -> Option<Vec<u8>>;
 }
 
-impl<T: Any + Module + Sized + 'static> ModuleEngine<T> {
-    fn new(all_module: HashMap<ModuleNameEnum, Box<T>>) -> Self {
-        ModuleEngine { all_module }
-    }
-
-    fn find_module(&self, name: ModuleNameEnum) -> &Box<T> {
-        let all_module = &self.all_module;
-        let op = all_module.get(&name);
-        match op {
-            None => {
-                panic!("[ModuleEngine] can not find module:{:?}", name);
-            }
-            Some(t) => {
-                return t;
-            }
-        }
-    }
+struct ModuleEngine {
+    biz: Box<DefaultBizModule>,
+    login: Box<dyn LoginModule>,
+    p2p: Box<dyn P2pModule>,
+    chat: Box<dyn ChatModule>,
+    socket: Box<dyn SocketModule>,
+    storage: Box<dyn StorageModule>,
+    ui: Box<dyn UiModule>,
+}
+struct ModuleActorEngine {
+    login: Option<Addr<TestLoginActor>>,
 }

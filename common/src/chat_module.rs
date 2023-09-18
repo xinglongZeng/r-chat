@@ -1,6 +1,5 @@
-use crate::biz_module::ChatData;
-use crate::{Module, ModuleEngine, ModuleNameEnum};
-use std::any::Any;
+use crate::{ModuleEngine, ModuleNameEnum};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Error;
 use std::net::SocketAddr;
@@ -8,7 +7,7 @@ use std::rc::Weak;
 use std::sync::RwLock;
 
 //聊天模块
-trait ChatModule: Module {
+pub trait ChatModule {
     // 发送信息到指定账户
     fn sendMsg(&self, from_account: String, to_account: String, msg: String) -> Result<(), Error>;
 
@@ -25,19 +24,40 @@ trait ChatModule: Module {
     fn find_chat_history(&self, account_a: String, account_b: String) -> Option<Vec<ChatData>>;
 }
 
-struct DefaultClientChatModule<T: Any + Module + Sized + 'static> {
-    share: Weak<ModuleEngine<T>>,
+struct DefaultClientChatModule {
+    share: Weak<ModuleEngine>,
     // 读写锁，存储对方账户与socket的映射关系
     connected_accounts: RwLock<HashMap<String, SocketAddr>>,
 }
 
-impl<T: Any + Module + Sized> Module for DefaultClientChatModule<T> {
-    fn get_module_name() -> ModuleNameEnum {
-        ModuleNameEnum::Chat
-    }
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ChatData {
+    pub from_account: String,
+    pub to_account: String,
+    pub contents: Vec<ChatContent>,
+    // todo:暂时用u32来表示时间错
+    pub time: u32,
 }
 
-impl<T: Any + Module + Sized + 'static> ChatModule for DefaultClientChatModule<T> {
+#[derive(Debug, Serialize, Deserialize)]
+pub enum ChatContent {
+    Text(ChatTextContent),
+    File(ChatFileContent),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ChatTextContent {
+    pub text: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ChatFileContent {
+    pub file_name: String,
+    pub url: Option<String>,
+    pub data: Option<Vec<u8>>,
+}
+
+impl ChatModule for DefaultClientChatModule {
     fn sendMsg(&self, from_account: String, to_account: String, msg: String) -> Result<(), Error> {
         todo!()
         // 1. 根据 to_account检查是否有对应的socket链接
