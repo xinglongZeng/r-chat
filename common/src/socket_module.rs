@@ -7,7 +7,7 @@ use log::info;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Error;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::rc::Weak;
 use std::sync::Arc;
@@ -28,10 +28,10 @@ pub trait SocketModule {
     fn start(&mut self) -> Result<(), Error>;
 }
 
-struct DefaultSocketModule<> {
+struct DefaultSocketModule {
     // share: Weak<Box<ModuleEngine>>,
-    share: Arc<ModuleActorEngine>,
-    cache: Arc<HashMap<SocketAddr, ProtocolCacheData>>,
+    share: DefaultBizModule,
+    cache: HashMap<SocketAddr, ProtocolCacheData>,
     state: SocketModuleState,
 }
 
@@ -62,12 +62,7 @@ impl SocketModule for DefaultSocketModule {
 
         while self.state == SocketModuleState::RUNNING {
             let (stream, address) = listener.accept().unwrap();
-            parse_tcp_stream(
-                stream,
-                address,
-                &mut Arc::clone(&self.cache),
-                &self.share.upgrade().unwrap().biz,
-            );
+            parse_tcp_stream(stream, address, &mut self.cache, &mut self.share);
         }
 
         println!("##########  DefaultSocketModule stopped! ###########");
@@ -281,51 +276,64 @@ pub struct ProtocolCacheData {
 fn parse_tcp_stream(
     stream: TcpStream,
     address: SocketAddr,
-    all_cache: &mut Arc<HashMap<SocketAddr, ProtocolCacheData>>,
-    default_biz: &Box<DefaultBizModule>,
+    all_cache: &mut HashMap<SocketAddr, ProtocolCacheData>,
+    default_biz: &mut DefaultBizModule,
 ) {
-    match all_cache.get_mut(&address) {
-        Some(t) => match t.data {
-            None => t.data = Some(Protocol::create_new()),
-            Some(_) => {}
-        },
-
-        None => {
-            let cache_data = ProtocolCacheData {
-                stream,
-                data: Some(Protocol::create_new()),
-            };
-
-            all_cache.insert(address, cache_data);
+    let mut pca = match all_cache.remove(&address) {
+        Some(mut t) => {
+            match t.data {
+                None => t.data = Some(Protocol::create_new()),
+                Some(_) => {}
+            }
+            t
         }
+
+        None => ProtocolCacheData {
+            stream,
+            data: Some(Protocol::create_new()),
+        },
     };
 
     let mut buf = [0; 128];
 
-    let cache = all_cache.get_mut(&address).unwrap();
-
-    let mut remain = cache.stream.read(&mut buf).unwrap();
+    let mut remain = pca.stream.read(&mut buf).unwrap();
 
     let total_len = remain.clone();
 
     let mut index = 0;
 
-    let mut pkg = cache.data.as_mut().unwrap();
-
     let buffer = buf.to_vec();
 
     while remain > 0 {
-        let len = fill(&mut pkg, &buffer, index.clone(), total_len.clone());
+        let len = fill(
+            pca.data.as_mut().unwrap(),
+            &buffer,
+            index.clone(),
+            total_len.clone(),
+        );
 
         remain -= len;
 
         index += len.clone();
 
-        if pkg.completion() {
-            default_biz.handle_pkg(&pkg);
+        if pca.data.as_ref().unwrap().completion() {
+            let resp = default_biz.handle_pkg(pca.data.as_ref().unwrap());
+            if resp.is_some() {
+                pca.stream
+                    .write_all(&resp.unwrap())
+                    .expect("stream send resp occurs fail !");
+            }
+            if remain > 0 {
+                pca.data = Some(Protocol::create_new());
+            }
         }
     }
+
+    if !pca.data.as_ref().unwrap().completion() {
+        all_cache.insert(address, pca);
+    }
 }
+
 fn fill(pkg: &mut Protocol, all_bytes: &Vec<u8>, mut index: usize, total_len: usize) -> usize {
     while index < total_len && !pkg.completion() {
         for field_name in Protocol::get_all_filed_name() {

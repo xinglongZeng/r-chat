@@ -2,7 +2,8 @@ use crate::login_module::{
     BizLoginData, LoginDataEnum, LoginModule, LoginReqData, LoginRespData, LoginTypeEnum,
 };
 use crate::socket_module::Protocol;
-use crate::{ModuleActorEngine, ModuleEngine, ModuleNameEnum};
+use crate::{CommonModule, ModuleActorEngine, ModuleEngine, ModuleNameEnum};
+use actix::dev::MessageResponse;
 use actix::Message;
 use enum_index::IndexEnum;
 use enum_index_derive::{EnumIndex, IndexEnum};
@@ -11,32 +12,38 @@ use std::sync::Arc;
 
 pub struct DefaultBizModule {
     // share: Weak<ModuleEngine>,
-    share: Arc<ModuleActorEngine>,
+    share: ModuleActorEngine,
 }
 
 impl DefaultBizModule {
-    fn handle_login(&self, data: &Vec<u8>) -> Option<Vec<u8>> {}
+    fn handle_login(&mut self, data: Vec<u8>) -> Option<Vec<u8>> {
+        self.share
+            .login
+            .as_mut()
+            .unwrap()
+            .handle_byte_on_socket(data)
+    }
 
-    fn handle_chat_msg(&self, data: &Vec<u8>) {
+    fn handle_chat_msg(&self, data: Vec<u8>) -> Option<Vec<u8>> {
         todo!()
     }
 
-    fn handle_p2p(&self, data: &Vec<u8>) {
+    fn handle_p2p(&self, data: Vec<u8>) -> Option<Vec<u8>> {
         todo!()
     }
 
-    pub fn handle_pkg(&self, pkg: &Protocol) {
+    pub fn handle_pkg(&mut self, pkg: &Protocol) -> Option<Vec<u8>> {
         let data_type = pkg.data_type.as_ref().unwrap()[0].clone();
         let biz_type: BizTypeEnum = BizTypeEnum::to_self(data_type);
         match biz_type {
             BizTypeEnum::Login => {
-                self.handle_login(pkg.data.as_ref().unwrap());
+                return self.handle_login(pkg.data.as_ref().unwrap().to_owned());
             }
             BizTypeEnum::Chat => {
-                self.handle_chat_msg(pkg.data.as_ref().unwrap());
+                return self.handle_chat_msg(pkg.data.as_ref().unwrap().to_owned());
             }
             BizTypeEnum::P2p => {
-                self.handle_p2p(pkg.data.as_ref().unwrap());
+                return self.handle_p2p(pkg.data.as_ref().unwrap().to_owned());
             }
         }
     }

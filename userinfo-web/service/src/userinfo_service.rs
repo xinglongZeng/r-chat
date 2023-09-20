@@ -1,6 +1,6 @@
 use crate::userinfo_dao::Dao;
 use ::entity::userinfo;
-use common::LoginReqData;
+use common::login_module::LoginReqData;
 
 #[derive(Debug)]
 pub struct Service {

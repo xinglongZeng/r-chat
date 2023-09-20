@@ -1,6 +1,6 @@
 use crate::biz_module::DefaultBizModule;
 use crate::chat_module::ChatModule;
-use crate::login_module::{LoginModule, TestClientLoginActor, TestLoginActor};
+use crate::login_module::{LoginModule, TestLoginActor};
 use crate::p2p_module::P2pModule;
 use crate::socket_module::SocketModule;
 use crate::storage_module::StorageModule;
@@ -30,8 +30,8 @@ pub enum ModuleNameEnum {
     Login,
 }
 
-trait CommonModule {
-    fn handle_byte_on_socket(&self, bytes: Vec<u8>) -> Option<Vec<u8>>;
+pub trait CommonModule {
+    fn handle_byte_on_socket(&mut self, bytes: Vec<u8>) -> Option<Vec<u8>>;
 }
 
 struct ModuleEngine {
@@ -44,5 +44,5 @@ struct ModuleEngine {
     ui: Box<dyn UiModule>,
 }
 struct ModuleActorEngine {
-    login: Option<Addr<TestLoginActor>>,
+    login: Option<TestLoginActor>,
 }

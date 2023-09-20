@@ -1,6 +1,5 @@
 use crate::config::ClientDefaultConfig;
 use crate::CommonModule;
-use actix::dev::MessageResponse;
 use actix::{Actor, Addr, Context, Handler, Message};
 use log::error;
 use serde::{Deserialize, Serialize};
@@ -63,27 +62,10 @@ impl Actor for TestLoginActor {
     type Context = Context<Self>;
 }
 
-impl Handler<BizResult<LoginRespData>> for TestLoginActor {
-    type Result = ();
-
-    fn handle(&mut self, msg: BizResult<LoginRespData>, ctx: &mut Self::Context) -> Self::Result {
-        let module = &mut self.client.unwrap();
-        module.handle_login_biz_resp(msg);
-    }
-}
-
 struct DefaultServerLoginModule {}
 
 impl LoginModule for DefaultServerLoginModule {
     fn handle_login_req(&self, req: LoginReqData) -> Result<LoginRespData, Error> {
-        todo!()
-    }
-}
-
-impl Handler<LoginReqData> for TestLoginActor {
-    type Result = LoginRespData;
-
-    fn handle(&mut self, msg: LoginReqData, ctx: &mut Self::Context) -> Self::Result {
         todo!()
     }
 }
@@ -113,20 +95,6 @@ pub struct BizResult<T> {
     pub data: Option<T>,
 }
 
-impl<A, M> MessageResponse<A, M> for LoginRespData
-where
-    A: Actor,
-    M: Message<Result = LoginRespData>,
-{
-    // 将 返回值 发送出去的逻辑
-    fn handle(self, ctx: &mut A::Context, tx: Option<tokio::sync::oneshot::Sender<M::Result>>) {
-        if let Some(tx) = tx {
-            tx.send(self)
-                .expect("MessageResponse#LoginRespData handle fail!");
-        }
-    }
-}
-
 fn get_testClientLoginActor_sender() -> Addr<TestLoginActor> {
     let config = &ClientDefaultConfig::init_from_env();
     let clientLoginModule = DefaultClientLoginModule {
@@ -144,9 +112,9 @@ fn get_testClientLoginActor_sender() -> Addr<TestLoginActor> {
 impl LoginModule for DefaultClientLoginModule {
     fn handle_login_resp(&mut self, resp: LoginRespData) {
         // 存储账户信息到文件
-        save_account_info(&self.save_path, &resp);
+        let cache_data = save_account_info(&self.save_path, resp);
         //  存储账户信息到缓存
-        self.cache_account_info = Some(resp);
+        self.cache_account_info = Some(cache_data);
     }
 
     fn get_login_cache_info(&self) -> Option<LoginRespData> {
@@ -178,29 +146,31 @@ impl DefaultClientLoginModule {
     }
 }
 
-fn save_account_info(path: &String, data: &LoginRespData) {
+fn save_account_info(path: &String, data: LoginRespData) -> LoginRespData {
     // 1. 转换data为字节
-    let mut byte_result = bincode::serialize(data).unwrap().as_slice();
+    let byte_result = bincode::serialize(&data);
 
     // 2. 将字节数据存储到文件中
     fs::create_dir_all(path).expect("创建account存储目录失败!");
-    let file_name = format!("{}/{}", path, data.account);
+    let file_name = format!("{}/{}", path, &data.account);
     let file = File::create(file_name).unwrap();
-    file.write_all_at(byte_result, 0).unwrap();
+    file.write_all_at(byte_result.unwrap().as_slice(), 0)
+        .unwrap();
+    data
 }
 
 impl CommonModule for TestLoginActor {
-    fn handle_byte_on_socket(&self, bytes: Vec<u8>) -> Option<Vec<u8>> {
+    fn handle_byte_on_socket(&mut self, bytes: Vec<u8>) -> Option<Vec<u8>> {
         let login: BizLoginData = bincode::deserialize(&bytes).unwrap();
 
-        // 处理登录请求
+        // handle request of login
         match (login.login_type, login.data) {
             (LoginTypeEnum::Req, LoginDataEnum::ReqData(req)) => {
                 if self.server.is_none() {
                     panic!("DefaultServerLoginModule is None!");
                 }
 
-                let resp = self.server.unwrap().handle_login_req(req);
+                let resp = self.server.as_ref().unwrap().handle_login_req(req);
 
                 let mut bizResult: Option<BizResult<LoginRespData>> = None;
 
@@ -223,13 +193,13 @@ impl CommonModule for TestLoginActor {
                 return Some(bincode::serialize(&bizResult.unwrap()).unwrap());
             }
 
-            // 处理登录响应
+            // handle response of login
             (LoginTypeEnum::Resp, LoginDataEnum::RespData(resp)) => {
                 if self.client.is_none() {
                     panic!("DefaultClientLoginModule is None!");
                 }
 
-                self.client.unwrap().handle_login_biz_resp(resp);
+                self.client.as_mut().unwrap().handle_login_biz_resp(resp);
             }
 
             _ => {
