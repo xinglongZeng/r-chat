@@ -1,5 +1,7 @@
-use common::biz_module::{LoginReqData, LoginRespData};
+use common::biz_module::{DefaultBizModule};
 use common::config::TcpSocketConfig;
+use common::login_module::{DefaultServerLoginModule, LoginReqData, LoginRespData, TestLoginActor};
+use common::socket_module::{DefaultSocketModule, SocketModule};
 use log::{error, info, warn};
 use socket::chat_protocol::P2pDataType::*;
 use socket::chat_protocol::{ChatCommand, ChatData, GetIpV4Req, P2pData};
@@ -13,19 +15,24 @@ use userinfo_web::sea_orm::Database;
 use userinfo_web::userinfo_dao::Dao;
 use userinfo_web::userinfo_service::Service;
 
+pub fn start_server_new() {
+    let user_info_service = init_user_info_service();
+    let mut socket_module = init_socket_module();
+    // todo
+    socket_module.start();
+}
+
+fn init_socket_module() -> DefaultSocketModule {
+    let d_s_login = DefaultServerLoginModule {};
+    let login_module = TestLoginActor::init(None, Some(d_s_login));
+    let share = DefaultBizModule::init(Some(login_module));
+    let socket_module = DefaultSocketModule::init(share);
+    socket_module
+}
+
 pub fn start_server() {
-    let db_url = env::var("DATABASE_URL").expect("DATABASE_URL is not set in .env file");
 
-    // establish connection to database.   建立与数据的链接
-    let conn = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .unwrap()
-        .block_on(async { Database::connect(&db_url).await.unwrap() });
-
-    let dao = Dao { db: conn };
-
-    let service = Arc::new(Service { dao });
+    let service = Arc::new(init_user_info_service);
 
     let service_cp = service.clone();
 
@@ -43,6 +50,21 @@ pub fn start_server() {
         .join()
         .expect("userinfo_web_task start fail!");
     socket_task.join().expect("socket_task fail!");
+}
+
+
+fn init_user_info_service()->Service{
+    let db_url = env::var("DATABASE_URL").expect("DATABASE_URL is not set in .env file");
+
+    // establish connection to database.   建立与数据的链接
+    let conn = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(async { Database::connect(&db_url).await.unwrap() });
+
+    let dao = Dao { db: conn };
+    Service { dao }
 }
 
 // 开启socket服务

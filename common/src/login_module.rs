@@ -46,7 +46,7 @@ pub enum LoginTypeEnum {
     Resp,
 }
 
-struct DefaultClientLoginModule {
+pub struct DefaultClientLoginModule {
     // 账户信息存储路径
     save_path: String,
     // 缓存的账户信息
@@ -58,11 +58,20 @@ pub struct TestLoginActor {
     server: Option<DefaultServerLoginModule>,
 }
 
+impl TestLoginActor {
+    pub fn init(
+        client: Option<DefaultClientLoginModule>,
+        server: Option<DefaultServerLoginModule>,
+    ) -> Self {
+        TestLoginActor { client, server }
+    }
+}
+
 impl Actor for TestLoginActor {
     type Context = Context<Self>;
 }
 
-struct DefaultServerLoginModule {}
+pub struct DefaultServerLoginModule {}
 
 impl LoginModule for DefaultServerLoginModule {
     fn handle_login_req(&self, req: LoginReqData) -> Result<LoginRespData, Error> {

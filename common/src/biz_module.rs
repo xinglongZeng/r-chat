@@ -1,27 +1,20 @@
-use crate::login_module::{
-    BizLoginData, LoginDataEnum, LoginModule, LoginReqData, LoginRespData, LoginTypeEnum,
-};
+use crate::login_module::TestLoginActor;
 use crate::socket_module::Protocol;
-use crate::{CommonModule, ModuleActorEngine, ModuleEngine, ModuleNameEnum};
-use actix::dev::MessageResponse;
-use actix::Message;
+use crate::CommonModule;
 use enum_index::IndexEnum;
 use enum_index_derive::{EnumIndex, IndexEnum};
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
 pub struct DefaultBizModule {
-    // share: Weak<ModuleEngine>,
-    share: ModuleActorEngine,
+    login: Option<TestLoginActor>,
 }
 
 impl DefaultBizModule {
+    pub fn init(login: Option<TestLoginActor>) -> Self {
+        DefaultBizModule { login }
+    }
     fn handle_login(&mut self, data: Vec<u8>) -> Option<Vec<u8>> {
-        self.share
-            .login
-            .as_mut()
-            .unwrap()
-            .handle_byte_on_socket(data)
+        self.login.as_mut().unwrap().handle_byte_on_socket(data)
     }
 
     fn handle_chat_msg(&self, data: Vec<u8>) -> Option<Vec<u8>> {

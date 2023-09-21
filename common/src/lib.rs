@@ -33,16 +33,3 @@ pub enum ModuleNameEnum {
 pub trait CommonModule {
     fn handle_byte_on_socket(&mut self, bytes: Vec<u8>) -> Option<Vec<u8>>;
 }
-
-struct ModuleEngine {
-    biz: Box<DefaultBizModule>,
-    login: Box<dyn LoginModule>,
-    p2p: Box<dyn P2pModule>,
-    chat: Box<dyn ChatModule>,
-    socket: Box<dyn SocketModule>,
-    storage: Box<dyn StorageModule>,
-    ui: Box<dyn UiModule>,
-}
-struct ModuleActorEngine {
-    login: Option<TestLoginActor>,
-}

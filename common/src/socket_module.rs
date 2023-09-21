@@ -1,6 +1,5 @@
 use crate::biz_module::DefaultBizModule;
 use crate::config::TcpSocketConfig;
-use crate::{ModuleActorEngine, ModuleEngine};
 use derive_more::Display;
 use enum_index_derive::{EnumIndex, IndexEnum};
 use log::info;
@@ -9,8 +8,6 @@ use std::collections::HashMap;
 use std::fmt::Error;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
-use std::rc::Weak;
-use std::sync::Arc;
 
 static MAX_DATA_LEN: u64 = u32::MAX as u64;
 
@@ -28,11 +25,20 @@ pub trait SocketModule {
     fn start(&mut self) -> Result<(), Error>;
 }
 
-struct DefaultSocketModule {
-    // share: Weak<Box<ModuleEngine>>,
+pub struct DefaultSocketModule {
     share: DefaultBizModule,
     cache: HashMap<SocketAddr, ProtocolCacheData>,
     state: SocketModuleState,
+}
+
+impl DefaultSocketModule {
+    pub fn init(share: DefaultBizModule) -> Self {
+        DefaultSocketModule {
+            share,
+            cache: Default::default(),
+            state: SocketModuleState::INIT,
+        }
+    }
 }
 
 impl SocketModule for DefaultSocketModule {
