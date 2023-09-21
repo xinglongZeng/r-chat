@@ -1,25 +1,23 @@
-use actix_web::{
-    error, get, middleware, post, web, App, Error, HttpRequest, HttpResponse, HttpServer,
-    Responder, Result,
-};
-use serde::{Deserialize, Serialize};
-use service::{sea_orm::DatabaseConnection, userinfo_dao, userinfo_service};
-use std::env;
-
 use actix_files::Files as Fs;
 use actix_files::NamedFile;
 use actix_http::body::BoxBody;
 use actix_web::http::header::ContentType;
 use actix_web::http::StatusCode;
-use common::TcpSocketConfig;
+use actix_web::{
+    error, get, middleware, post, web, App, Error, HttpRequest, HttpResponse, HttpServer,
+    Responder, Result,
+};
+use common::config::TcpSocketConfig;
 use derive_more::Display;
 use entity::userinfo;
 use entity::userinfo::Model;
 use env_logger::Env;
 use listenfd::ListenFd;
 use log::debug;
+use serde::{Deserialize, Serialize};
 use service::sea_orm::{Database, DbErr};
 use service::userinfo_service::Service;
+use std::env;
 use std::fmt::{Debug, Display, Formatter};
 use std::sync::Arc;
 use tera::Tera;
@@ -238,7 +236,6 @@ fn init(cfg: &mut web::ServiceConfig) {
     cfg.service(account_index);
     cfg.service(new);
 }
-
 
 #[actix_web::main]
 pub async fn api_start_web_server_new(user_service: Arc<Service>) -> std::io::Result<()> {

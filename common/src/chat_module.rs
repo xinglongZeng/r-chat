@@ -1,4 +1,3 @@
-use crate::{ModuleEngine, ModuleNameEnum};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Error;
@@ -25,7 +24,7 @@ pub trait ChatModule {
 }
 
 struct DefaultClientChatModule {
-    share: Weak<ModuleEngine>,
+    // share: Weak<ModuleEngine>,
     // 读写锁，存储对方账户与socket的映射关系
     connected_accounts: RwLock<HashMap<String, SocketAddr>>,
 }

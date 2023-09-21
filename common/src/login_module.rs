@@ -9,6 +9,10 @@ use std::fs::File;
 use std::os::unix::prelude::FileExt;
 
 pub trait LoginModule {
+    fn handle_login_biz_resp(&mut self, resp: BizResult<LoginRespData>) {
+        panic!("暂未实现该函数 [handle_login_biz_resp]!");
+    }
+
     fn handle_login_req(&self, req: LoginReqData) -> Result<LoginRespData, Error> {
         panic!("暂未实现该函数 [handle_login_req]!");
     }
@@ -54,14 +58,14 @@ pub struct DefaultClientLoginModule {
 }
 
 pub struct TestLoginActor {
-    client: Option<DefaultClientLoginModule>,
-    server: Option<DefaultServerLoginModule>,
+    client: Option<Box<dyn LoginModule>>,
+    server: Option<Box<dyn LoginModule>>,
 }
 
 impl TestLoginActor {
     pub fn init(
-        client: Option<DefaultClientLoginModule>,
-        server: Option<DefaultServerLoginModule>,
+        client: Option<Box<dyn LoginModule>>,
+        server: Option<Box<dyn LoginModule>>,
     ) -> Self {
         TestLoginActor { client, server }
     }
@@ -111,7 +115,7 @@ fn get_testClientLoginActor_sender() -> Addr<TestLoginActor> {
         cache_account_info: None,
     };
     let actor = TestLoginActor {
-        client: Some(clientLoginModule),
+        client: Some(Box::new(clientLoginModule)),
         server: None,
     };
     let addr = actor.start();
@@ -119,6 +123,14 @@ fn get_testClientLoginActor_sender() -> Addr<TestLoginActor> {
 }
 
 impl LoginModule for DefaultClientLoginModule {
+    fn handle_login_biz_resp(&mut self, resp: BizResult<LoginRespData>) {
+        if !resp.is_success {
+            error!("socket msg :{:?}", resp);
+        } else {
+            self.handle_login_resp(resp.data.unwrap());
+        }
+    }
+
     fn handle_login_resp(&mut self, resp: LoginRespData) {
         // 存储账户信息到文件
         let cache_data = save_account_info(&self.save_path, resp);
@@ -141,16 +153,6 @@ impl LoginModule for DefaultClientLoginModule {
                 // todo: 检查token是否超时，目前token的生成规则还未定,暂时返回false
                 Ok(false)
             }
-        }
-    }
-}
-
-impl DefaultClientLoginModule {
-    fn handle_login_biz_resp(&mut self, resp: BizResult<LoginRespData>) {
-        if !resp.is_success {
-            error!("socket msg :{:?}", resp);
-        } else {
-            self.handle_login_resp(resp.data.unwrap());
         }
     }
 }
