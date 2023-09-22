@@ -8,6 +8,7 @@ use crate::ui_module::UiModule;
 use actix::{Actor, Addr, Context};
 use std::any::Any;
 use std::collections::HashMap;
+use std::net::SocketAddr;
 use std::sync::Arc;
 
 pub mod biz_module;
@@ -18,6 +19,8 @@ pub mod p2p_module;
 pub mod socket_module;
 pub mod storage_module;
 pub mod ui_module;
+
+pub mod errors_define;
 
 #[derive(Debug, Eq, PartialEq, Hash)]
 pub enum ModuleNameEnum {
@@ -31,5 +34,5 @@ pub enum ModuleNameEnum {
 }
 
 pub trait CommonModule {
-    fn handle_byte_on_socket(&mut self, bytes: Vec<u8>) -> Option<Vec<u8>>;
+    fn handle_byte_on_socket(&mut self, bytes: Vec<u8>,address: SocketAddr) -> Option<Vec<u8>>;
 }

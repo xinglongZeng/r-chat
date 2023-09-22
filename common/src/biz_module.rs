@@ -4,6 +4,7 @@ use crate::CommonModule;
 use enum_index::IndexEnum;
 use enum_index_derive::{EnumIndex, IndexEnum};
 use serde::{Deserialize, Serialize};
+use std::net::SocketAddr;
 
 pub struct DefaultBizModule {
     login: Option<TestLoginActor>,
@@ -13,8 +14,11 @@ impl DefaultBizModule {
     pub fn init(login: Option<TestLoginActor>) -> Self {
         DefaultBizModule { login }
     }
-    fn handle_login(&mut self, data: Vec<u8>) -> Option<Vec<u8>> {
-        self.login.as_mut().unwrap().handle_byte_on_socket(data)
+    fn handle_login(&mut self, data: Vec<u8>, address: SocketAddr) -> Option<Vec<u8>> {
+        self.login
+            .as_mut()
+            .unwrap()
+            .handle_byte_on_socket(data, address)
     }
 
     fn handle_chat_msg(&self, data: Vec<u8>) -> Option<Vec<u8>> {
@@ -25,12 +29,12 @@ impl DefaultBizModule {
         todo!()
     }
 
-    pub fn handle_pkg(&mut self, pkg: &Protocol) -> Option<Vec<u8>> {
+    pub fn handle_pkg(&mut self, pkg: &Protocol, address: SocketAddr) -> Option<Vec<u8>> {
         let data_type = pkg.data_type.as_ref().unwrap()[0].clone();
         let biz_type: BizTypeEnum = BizTypeEnum::to_self(data_type);
         match biz_type {
             BizTypeEnum::Login => {
-                return self.handle_login(pkg.data.as_ref().unwrap().to_owned());
+                return self.handle_login(pkg.data.as_ref().unwrap().to_owned(), address);
             }
             BizTypeEnum::Chat => {
                 return self.handle_chat_msg(pkg.data.as_ref().unwrap().to_owned());

@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Error;
 use std::fs;
 use std::fs::File;
+use std::net::SocketAddr;
 use std::os::unix::prelude::FileExt;
 
 pub trait LoginModule {
@@ -13,7 +14,11 @@ pub trait LoginModule {
         panic!("暂未实现该函数 [handle_login_biz_resp]!");
     }
 
-    fn handle_login_req(&self, req: LoginReqData) -> Result<LoginRespData, Error> {
+    fn handle_login_req(
+        &mut self,
+        req: LoginReqData,
+        address: SocketAddr,
+    ) -> Result<LoginRespData, String> {
         panic!("暂未实现该函数 [handle_login_req]!");
     }
 
@@ -73,14 +78,6 @@ impl TestLoginActor {
 
 impl Actor for TestLoginActor {
     type Context = Context<Self>;
-}
-
-pub struct DefaultServerLoginModule {}
-
-impl LoginModule for DefaultServerLoginModule {
-    fn handle_login_req(&self, req: LoginReqData) -> Result<LoginRespData, Error> {
-        todo!()
-    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Message)]
@@ -171,7 +168,7 @@ fn save_account_info(path: &String, data: LoginRespData) -> LoginRespData {
 }
 
 impl CommonModule for TestLoginActor {
-    fn handle_byte_on_socket(&mut self, bytes: Vec<u8>) -> Option<Vec<u8>> {
+    fn handle_byte_on_socket(&mut self, bytes: Vec<u8>, address: SocketAddr) -> Option<Vec<u8>> {
         let login: BizLoginData = bincode::deserialize(&bytes).unwrap();
 
         // handle request of login
@@ -181,7 +178,7 @@ impl CommonModule for TestLoginActor {
                     panic!("DefaultServerLoginModule is None!");
                 }
 
-                let resp = self.server.as_ref().unwrap().handle_login_req(req);
+                let resp = self.server.as_ref().unwrap().handle_login_req(req, address);
 
                 let mut bizResult: Option<BizResult<LoginRespData>> = None;
 

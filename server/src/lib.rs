@@ -1,6 +1,6 @@
-use common::biz_module::{DefaultBizModule};
+use common::biz_module::DefaultBizModule;
 use common::config::TcpSocketConfig;
-use common::login_module::{DefaultServerLoginModule, LoginReqData, LoginRespData, TestLoginActor};
+use common::login_module::{LoginModule, LoginReqData, LoginRespData, TestLoginActor};
 use common::socket_module::{DefaultSocketModule, SocketModule};
 use log::{error, info, warn};
 use socket::chat_protocol::P2pDataType::*;
@@ -8,6 +8,7 @@ use socket::chat_protocol::{ChatCommand, ChatData, GetIpV4Req, P2pData};
 use socket::net::TcpServer;
 use socket::protocol_factory::{HandleProtocolFactory, HandlerProtocolData};
 use std::collections::HashMap;
+use std::fmt::Error;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex, RwLock};
 use std::{env, thread};
@@ -17,21 +18,84 @@ use userinfo_web::userinfo_service::Service;
 
 pub fn start_server_new() {
     let user_info_service = init_user_info_service();
-    let mut socket_module = init_socket_module();
+    let arc_user_service = Arc::new(user_info_service);
+    let mut socket_module = init_socket_module(arc_user_service);
     // todo
     socket_module.start();
 }
 
-fn init_socket_module() -> DefaultSocketModule {
-    let d_s_login = DefaultServerLoginModule {};
-    let login_module = TestLoginActor::init(None, Some(d_s_login));
+fn init_socket_module(user_service: Arc<Service>) -> DefaultSocketModule {
+    let d_s_login = DefaultServerLoginModule::init(user_service);
+    let login_module = TestLoginActor::init(None, Some(Box::new(d_s_login)));
     let share = DefaultBizModule::init(Some(login_module));
     let socket_module = DefaultSocketModule::init(share);
     socket_module
 }
 
-pub fn start_server() {
+pub struct DefaultServerLoginModule {
+    user_service: Arc<Service>,
+    login_cache: HashMap<String, SocketAddr>,
+}
 
+impl DefaultServerLoginModule {
+    fn init(user_service: Arc<Service>) -> Self {
+        DefaultServerLoginModule {
+            user_service,
+            login_cache: Default::default(),
+        }
+    }
+
+    fn update_cache(&mut self, address: SocketAddr, account: String) {
+        self.login_cache.insert(account, address).unwrap();
+    }
+
+    fn find_address_by_account_from_cache(&self, account: &String) -> SocketAddr {
+        self.login_cache.get(account).unwrap().clone()
+    }
+}
+
+impl LoginModule for DefaultServerLoginModule {
+    fn handle_login_req(
+        &mut self,
+        req: LoginReqData,
+        address: SocketAddr,
+    ) -> Result<LoginRespData, String> {
+        let user_service_ref = Arc::clone(&self.user_service);
+
+        // get account info
+        let account_info = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(user_service_ref.find_by_account_and_pwd(&req));
+
+        let result = match account_info {
+            Ok(t) => {
+                // todo: 生成token
+                let token = "token".to_string();
+                if t.is_some() {
+                    let model = t.unwrap();
+                    let resp = LoginRespData {
+                        user_id: model.id,
+                        account: model.name,
+                        token,
+                    };
+                    // insert cache
+                    self.login_cache.insert(model.name.clone(), address);
+                    Ok(resp)
+                } else {
+                    Err("login fail : account of password err !".to_string())
+                }
+            }
+
+            Err(e) => Err(e),
+        };
+
+        return result;
+    }
+}
+
+pub fn start_server() {
     let service = Arc::new(init_user_info_service);
 
     let service_cp = service.clone();
@@ -52,8 +116,7 @@ pub fn start_server() {
     socket_task.join().expect("socket_task fail!");
 }
 
-
-fn init_user_info_service()->Service{
+fn init_user_info_service() -> Service {
     let db_url = env::var("DATABASE_URL").expect("DATABASE_URL is not set in .env file");
 
     // establish connection to database.   建立与数据的链接

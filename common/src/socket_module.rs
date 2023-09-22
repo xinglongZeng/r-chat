@@ -323,7 +323,7 @@ fn parse_tcp_stream(
         index += len.clone();
 
         if pca.data.as_ref().unwrap().completion() {
-            let resp = default_biz.handle_pkg(pca.data.as_ref().unwrap());
+            let resp = default_biz.handle_pkg(pca.data.as_ref().unwrap(), address.clone());
             if resp.is_some() {
                 pca.stream
                     .write_all(&resp.unwrap())
