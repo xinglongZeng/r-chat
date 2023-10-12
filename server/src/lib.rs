@@ -2,6 +2,7 @@ use common::biz_module::DefaultBizModule;
 use common::config::TcpSocketConfig;
 use common::login_module::{LoginModule, LoginReqData, LoginRespData, TestLoginActor};
 use common::socket_module::{DefaultSocketModule, SocketModule};
+use env_logger::Env;
 use log::{error, info, warn};
 use socket::chat_protocol::P2pDataType::*;
 use socket::chat_protocol::{ChatCommand, ChatData, GetIpV4Req, P2pData};
@@ -17,11 +18,40 @@ use userinfo_web::userinfo_dao::Dao;
 use userinfo_web::userinfo_service::Service;
 
 pub fn start_server_new() {
+    // get env vars   读取.env文件中的变量，相当于读取配置文件
+    dotenvy::dotenv().ok();
+
+    // set logger level to debug
+    env_logger::init_from_env(Env::default().default_filter_or("debug"));
+
+    let socket_config = TcpSocketConfig::init_from_env();
+
+    // start trace info collect.  开启堆栈信息收集
+    // tracing_subscriber::fmt::init();
+
     let user_info_service = init_user_info_service();
     let arc_user_service = Arc::new(user_info_service);
-    let mut socket_module = init_socket_module(arc_user_service);
-    // todo
-    socket_module.start();
+    let mut socket_module = init_socket_module(Arc::clone(&arc_user_service));
+
+    let arc_user_service2 = Arc::clone(&arc_user_service);
+
+    // 开启用户信息的web服务
+    let userinfo_web_task = thread::spawn(|| {
+        userinfo_web::start_webserver_userinfo(arc_user_service2, socket_config)
+            .expect("webserver start fail!")
+    });
+
+    // 开启socket服务
+    let socket_task = thread::spawn(move || socket_module.start());
+
+    userinfo_web_task
+        .join()
+        .expect("userinfo_web_task start fail !");
+
+    socket_task
+        .join()
+        .expect("socket_task tart fail !")
+        .expect("start_server_new expect ！");
 }
 
 fn init_socket_module(user_service: Arc<Service>) -> DefaultSocketModule {
@@ -76,8 +106,8 @@ impl LoginModule for DefaultServerLoginModule {
                 if t.is_some() {
                     let model = t.unwrap();
                     let resp = LoginRespData {
-                        user_id: model.id,
-                        account: model.name,
+                        user_id: model.id.clone(),
+                        account: model.name.clone(),
                         token,
                     };
                     // insert cache
@@ -96,13 +126,16 @@ impl LoginModule for DefaultServerLoginModule {
 }
 
 pub fn start_server() {
-    let service = Arc::new(init_user_info_service);
+    let socket_config = TcpSocketConfig::init_from_env();
+
+    let service = Arc::new(init_user_info_service());
 
     let service_cp = service.clone();
 
     // 开启用户信息的web服务
     let userinfo_web_task = thread::spawn(|| {
-        userinfo_web::start_webserver_userinfo(service_cp).expect("webserver start fail!")
+        userinfo_web::start_webserver_userinfo(service_cp, socket_config)
+            .expect("webserver start fail!")
     });
 
     let service_cp2 = service.clone();
@@ -117,6 +150,9 @@ pub fn start_server() {
 }
 
 fn init_user_info_service() -> Service {
+    // get env vars   读取.env文件中的变量，相当于读取配置文件
+    dotenvy::dotenv().ok();
+
     let db_url = env::var("DATABASE_URL").expect("DATABASE_URL is not set in .env file");
 
     // establish connection to database.   建立与数据的链接
@@ -161,10 +197,10 @@ pub struct ServerLoginHandler {
 }
 
 impl ServerLoginHandler {
-    fn create_login_record(&self, uid: i32, address: SocketAddr) -> bool {
-        let read_lock = self.login_record.try_read();
+    fn create_login_record(&mut self, uid: i32, address: SocketAddr) -> bool {
+        let read_lock = self.login_record.try_write();
         if read_lock.is_err() {
-            warn!("[ServerLoginHandler] 获取读锁失败！uid:{}", uid);
+            warn!("[ServerLoginHandler] 获取写锁失败！uid:{}", uid);
             return false;
         }
         read_lock.unwrap().insert(uid, address);
@@ -177,7 +213,7 @@ impl ServerLoginHandler {
 }
 
 impl HandlerProtocolData for ServerLoginHandler {
-    fn handle(&self, address: SocketAddr, a: &Vec<u8>) -> Option<Vec<u8>> {
+    fn handle(&mut self, address: SocketAddr, a: &Vec<u8>) -> Option<Vec<u8>> {
         let req: LoginReqData = bincode::deserialize(a).unwrap();
 
         let op = tokio::runtime::Builder::new_current_thread()
@@ -224,7 +260,7 @@ pub struct ServerChatHandler {}
 impl HandlerProtocolData for ServerChatHandler {
     // note: this function could do  what you want  it
     // for example ,you could record this ChatData in db. but this time ,just print it by info!.
-    fn handle(&self, address: SocketAddr, a: &Vec<u8>) -> Option<Vec<u8>> {
+    fn handle(&mut self, address: SocketAddr, a: &Vec<u8>) -> Option<Vec<u8>> {
         let req: ChatData = bincode::deserialize(a).unwrap();
         info!("OverrideChatHandler received data :{:?}  ", req);
         None
@@ -235,30 +271,32 @@ impl HandlerProtocolData for ServerChatHandler {
 pub struct ServiceP2pHandler {}
 
 impl ServiceP2pHandler {
-    fn handleGetIpV4Req(&self, a: &Vec<u8>) {
+    fn handleGetIpV4Req(&self, a: &Vec<u8>) -> Option<Vec<u8>> {
         let req: GetIpV4Req = bincode::deserialize(a).unwrap();
 
         // todo: 读取db或缓存，获取指定账户的ip地址，然后封装成GetIpV4Resp，再通过socket返回
+        None
     }
 
-    fn handleTryConnectReq(&self, a: &Vec<u8>) {
+    fn handleTryConnectReq(&self, a: &Vec<u8>) -> Option<Vec<u8>> {
         todo!()
     }
 }
 
 impl HandlerProtocolData for ServiceP2pHandler {
-    fn handle(&self, address: SocketAddr, a: &Vec<u8>) {
+    fn handle(&mut self, address: SocketAddr, a: &Vec<u8>) -> Option<Vec<u8>> {
         // todo: 获取biz类型
         let param: P2pData = bincode::deserialize(a).unwrap();
         match param.biz {
             GetIpV4Req => {
-                self.handleGetIpV4Req(a);
+                return self.handleGetIpV4Req(a);
             }
             TrtConnectReq => {
-                self.handleTryConnectReq(a);
+                return self.handleTryConnectReq(a);
             }
             _ => {
                 error!("暂不支持的biz:{:?}", param.biz);
+                return None;
             }
         }
     }

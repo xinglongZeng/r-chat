@@ -65,7 +65,12 @@ fn start_server_accept(server: &mut TcpServer) {
 
     while server.state == TcpServerState::RUNNING {
         let (stream, address) = listener.accept().unwrap();
-        parse_tcp_stream(stream, address, &mut server.all_conn_cache, &server.factory);
+        parse_tcp_stream(
+            stream,
+            address,
+            &mut server.all_conn_cache,
+            &mut server.factory,
+        );
     }
 
     println!("##########  TcpServer stopped! ###########");
@@ -75,7 +80,7 @@ fn parse_tcp_stream(
     stream: TcpStream,
     address: SocketAddr,
     all_cache: &mut HashMap<SocketAddr, ProtocolCacheData>,
-    factory: &HandleProtocolFactory,
+    factory: &mut HandleProtocolFactory,
 ) {
     match all_cache.get_mut(&address) {
         Some(t) => match t.data {
@@ -152,7 +157,7 @@ fn fill(pkg: &mut Protocol, all_bytes: &Vec<u8>, mut index: usize, total_len: us
 fn handle_pkg(
     pkg: &Protocol,
     address: SocketAddr,
-    factory: &HandleProtocolFactory,
+    factory: &mut HandleProtocolFactory,
 ) -> Option<Vec<u8>> {
     // convert bytes to struct by type
     let data_type = pkg.data_type.as_ref().unwrap()[0].clone();

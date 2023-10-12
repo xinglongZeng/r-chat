@@ -63,14 +63,14 @@ pub struct DefaultClientLoginModule {
 }
 
 pub struct TestLoginActor {
-    client: Option<Box<dyn LoginModule>>,
-    server: Option<Box<dyn LoginModule>>,
+    client: Option<Box<dyn LoginModule + Send>>,
+    server: Option<Box<dyn LoginModule + Send>>,
 }
 
 impl TestLoginActor {
     pub fn init(
-        client: Option<Box<dyn LoginModule>>,
-        server: Option<Box<dyn LoginModule>>,
+        client: Option<Box<dyn LoginModule + Send>>,
+        server: Option<Box<dyn LoginModule + Send>>,
     ) -> Self {
         TestLoginActor { client, server }
     }
@@ -177,8 +177,7 @@ impl CommonModule for TestLoginActor {
                 if self.server.is_none() {
                     panic!("DefaultServerLoginModule is None!");
                 }
-
-                let resp = self.server.as_ref().unwrap().handle_login_req(req, address);
+                let resp = self.server.as_mut().unwrap().handle_login_req(req, address);
 
                 let mut bizResult: Option<BizResult<LoginRespData>> = None;
 

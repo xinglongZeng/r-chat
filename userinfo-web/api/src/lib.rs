@@ -238,23 +238,10 @@ fn init(cfg: &mut web::ServiceConfig) {
 }
 
 #[actix_web::main]
-pub async fn api_start_web_server_new(user_service: Arc<Service>) -> std::io::Result<()> {
-    // set logger level to debug
-    env_logger::init_from_env(Env::default().default_filter_or("debug"));
-
-    // set config of env . 设置环境变量
-    env::set_var("RUST_LOG", "debug");
-
-    // start trace info collect.  开启堆栈信息收集
-    tracing_subscriber::fmt::init();
-
-    // get env vars   读取.env文件中的变量，相当于读取配置文件
-    dotenvy::dotenv().ok();
-
-    let host = env::var("WEB_HOST").expect("HOST is not set in .env file");
-    let port = env::var("WEB_PORT").expect("PORT is not set in .env file");
-    let server_url = format!("{host}:{port}");
-
+pub async fn api_start_web_server_new(
+    user_service: Arc<Service>,
+    socket_config: TcpSocketConfig,
+) -> std::io::Result<()> {
     // load tera templates
     let templates = Tera::new(concat!(env!("CARGO_MANIFEST_DIR"), "/templates/**/*")).unwrap();
 
@@ -280,7 +267,7 @@ pub async fn api_start_web_server_new(user_service: Arc<Service>) -> std::io::Re
 
     server = match listenfd.take_tcp_listener(0)? {
         Some(listener) => server.listen(listener)?,
-        None => server.bind(&server_url)?,
+        None => server.bind(socket_config.get_url())?,
     };
 
     server.run().await
