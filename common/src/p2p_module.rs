@@ -16,8 +16,8 @@ pub struct P2pData {
 pub enum P2pDataType {
     GetIpV4Req,
     GetIpV4Resp,
-    TrtConnectReq,
-    TrtConnectResp,
+    TryConnectReq,
+    TryConnectResp,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

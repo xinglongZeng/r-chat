@@ -1,13 +1,14 @@
+use crate::base::TcpServer;
 use common::biz_module::DefaultBizModule;
+use common::chat_module::ChatData;
+use common::chat_protocol::ChatCommand;
 use common::config::TcpSocketConfig;
 use common::login_module::{LoginModule, LoginReqData, LoginRespData, TestLoginActor};
+use common::p2p_module::{GetIpV4Req, P2pData};
+use common::protocol_factory::{HandleProtocolFactory, HandlerProtocolData};
 use common::socket_module::{DefaultSocketModule, SocketModule};
 use env_logger::Env;
 use log::{error, info, warn};
-use socket::chat_protocol::P2pDataType::*;
-use socket::chat_protocol::{ChatCommand, ChatData, GetIpV4Req, P2pData};
-use socket::net::TcpServer;
-use socket::protocol_factory::{HandleProtocolFactory, HandlerProtocolData};
 use std::collections::HashMap;
 use std::fmt::Error;
 use std::net::SocketAddr;
@@ -16,6 +17,8 @@ use std::{env, thread};
 use userinfo_web::sea_orm::Database;
 use userinfo_web::userinfo_dao::Dao;
 use userinfo_web::userinfo_service::Service;
+
+pub mod base;
 
 pub fn start_server_new() {
     // get env vars   读取.env文件中的变量，相当于读取配置文件
@@ -282,10 +285,10 @@ impl HandlerProtocolData for ServiceP2pHandler {
         // todo: 获取biz类型
         let param: P2pData = bincode::deserialize(a).unwrap();
         match param.biz {
-            GetIpV4Req => {
+            common::p2p_module::P2pDataType::GetIpV4Req => {
                 return self.handleGetIpV4Req(a);
             }
-            TrtConnectReq => {
+            common::p2p_module::P2pDataType::TryConnectReq => {
                 return self.handleTryConnectReq(a);
             }
             _ => {

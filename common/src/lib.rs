@@ -13,9 +13,11 @@ use std::sync::Arc;
 
 pub mod biz_module;
 pub mod chat_module;
+pub mod chat_protocol;
 pub mod config;
 pub mod login_module;
 pub mod p2p_module;
+pub mod protocol_factory;
 pub mod socket_module;
 pub mod storage_module;
 pub mod ui_module;
@@ -34,5 +36,5 @@ pub enum ModuleNameEnum {
 }
 
 pub trait CommonModule {
-    fn handle_byte_on_socket(&mut self, bytes: Vec<u8>,address: SocketAddr) -> Option<Vec<u8>>;
+    fn handle_byte_on_socket(&mut self, bytes: Vec<u8>, address: SocketAddr) -> Option<Vec<u8>>;
 }

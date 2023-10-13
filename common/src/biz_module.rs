@@ -1,5 +1,5 @@
+use crate::chat_protocol::Protocol;
 use crate::login_module::TestLoginActor;
-use crate::socket_module::Protocol;
 use crate::CommonModule;
 use enum_index::IndexEnum;
 use enum_index_derive::{EnumIndex, IndexEnum};
