@@ -130,7 +130,7 @@ fn init_user_info_service() -> Service {
 fn start_socket(user_service: Arc<Service>) {
     let factory = create_factory(user_service);
 
-    let config = TcpSocketConfig::init_from_env();
+    let config = TcpSocketConfig::init_from_env("SERVER_TCP_HOST", "SERVER_TCP_PORT");
 
     let mut server = TcpServer::new(config.get_url(), factory);
 
@@ -140,20 +140,20 @@ fn start_socket(user_service: Arc<Service>) {
 // 创建HandleProtocolFactory, 实际里面填充解析socket协议的handler
 fn create_factory(user_service: Arc<Service>) -> HandleProtocolFactory {
     // login handler
-    let login_handler = create_DefaultLoginHandler(user_service);
-
+    let login_handler = create_default_server_login_handler(user_service);
     // todo: chat handler
-
+    let chat_handler = Box::new(ServerChatHandler {});
     // todo: p2p handler
+    let p2p_handler = Box::new(ServiceP2pHandler {});
 
     let mut factory = HandleProtocolFactory::new();
     factory.registry_handler(ChatCommand::Login, login_handler);
-    factory.registry_handler(ChatCommand::Chat, Box::new(ServerChatHandler {}));
-    factory.registry_handler(ChatCommand::P2p, Box::new(ServiceP2pHandler {}));
+    factory.registry_handler(ChatCommand::Chat, chat_handler);
+    factory.registry_handler(ChatCommand::P2p, p2p_handler);
     factory
 }
 
-fn create_DefaultLoginHandler(user_service: Arc<Service>) -> Box<DefaultLoginHandler> {
+fn create_default_server_login_handler(user_service: Arc<Service>) -> Box<DefaultLoginHandler> {
     let server = DefaultServerLoginModule::init(user_service);
     Box::new(DefaultLoginHandler::new(true, Some(Box::new(server)), None))
 }

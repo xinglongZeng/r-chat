@@ -1,4 +1,5 @@
 use std::env;
+use std::ffi::OsStr;
 
 pub struct TcpSocketConfig {
     pub tcp_host: String,
@@ -6,12 +7,12 @@ pub struct TcpSocketConfig {
 }
 
 impl TcpSocketConfig {
-    pub fn init_from_env() -> Self {
+    pub fn init_from_env<K: AsRef<OsStr>>(host_name: K, port_name: K) -> Self {
         dotenvy::dotenv().ok();
 
-        let tcp_host = env::var("TCP_HOST").expect("TCP_HOST is not set in .env file");
+        let tcp_host = env::var(host_name).expect("host_name is not set in .env file");
 
-        let tcp_port = env::var("TCP_PORT").expect("TCP_PORT is not set in .env file");
+        let tcp_port = env::var(port_name).expect("port_name is not set in .env file");
 
         TcpSocketConfig { tcp_host, tcp_port }
     }

@@ -1,9 +1,56 @@
-use common::login_module::{BizResult, ClientLoginModule, LoginRespData};
+use common::base::TcpServer;
+use common::chat_protocol::ChatCommand;
+use common::config::TcpSocketConfig;
+use common::login_module::{BizResult, ClientLoginModule, DefaultLoginHandler, LoginRespData};
+use common::protocol_factory::HandleProtocolFactory;
+use env_logger::Env;
 use log::warn;
 use std::fmt::Error;
-use std::fs;
 use std::fs::File;
 use std::os::unix::fs::FileExt;
+use std::{env, fs};
+
+pub fn start_client() {
+    // get env vars   读取.env文件中的变量，相当于读取配置文件
+    dotenvy::dotenv().ok();
+
+    // set logger level to debug
+    env_logger::init_from_env(Env::default().default_filter_or("debug"));
+
+    // start trace info collect.  开启堆栈信息收集
+    // tracing_subscriber::fmt::init();
+}
+
+fn start_client_socket() {
+    let factory = create_factory();
+
+    let config = TcpSocketConfig::init_from_env("CLIENT_TCP_HOST", "CLIENT_TCP_PORT");
+
+    // todo: 修改tcpServer为tcpClient，然后向server端发起请求
+    let mut server = TcpServer::new(config.get_url(), factory);
+
+    server.start();
+}
+
+fn create_factory() -> HandleProtocolFactory {
+    // login handler
+    let login_handler = create_default_client_login_handler();
+    // todo: chat handler
+    // todo: p2p handler
+
+    let mut factory = HandleProtocolFactory::new();
+    factory.registry_handler(ChatCommand::Login, login_handler);
+    factory
+}
+
+fn create_default_client_login_handler() -> Box<DefaultLoginHandler> {
+    let client = DefaultClientLoginModule::init_from_env();
+    Box::new(DefaultLoginHandler::new(
+        false,
+        None,
+        Some(Box::new(client)),
+    ))
+}
 
 pub struct DefaultClientLoginModule {
     // 账户信息存储路径
@@ -13,6 +60,16 @@ pub struct DefaultClientLoginModule {
 }
 
 impl DefaultClientLoginModule {
+    pub fn init_from_env() -> Self {
+        dotenvy::dotenv().ok();
+        let save_path = env::var("CLIENT_ACCOUNT_SAVE_PATH")
+            .expect("CLIENT_ACCOUNT_SAVE_PATH is not set in .env file");
+        DefaultClientLoginModule {
+            save_path,
+            cache_account_info: None,
+        }
+    }
+
     fn handle_login_resp(&mut self, resp: LoginRespData) {
         // 存储账户信息到文件
         let cache_data = save_account_info(&self.save_path, resp);
