@@ -24,8 +24,6 @@ pub fn start_server_new() {
     // set logger level to debug
     env_logger::init_from_env(Env::default().default_filter_or("debug"));
 
-    let socket_config = TcpSocketConfig::init_from_env();
-
     // start trace info collect.  开启堆栈信息收集
     // tracing_subscriber::fmt::init();
 
@@ -37,8 +35,7 @@ pub fn start_server_new() {
 
     // 开启用户信息的web服务
     let userinfo_web_task = thread::spawn(|| {
-        userinfo_web::start_webserver_userinfo(arc_user_service2, socket_config)
-            .expect("webserver start fail!")
+        userinfo_web::start_webserver_userinfo(arc_user_service2).expect("webserver start fail!")
     });
 
     // 开启socket服务
@@ -126,16 +123,13 @@ impl LoginModule for DefaultServerLoginModule {
 }
 
 pub fn start_server() {
-    let socket_config = TcpSocketConfig::init_from_env();
-
     let service = Arc::new(init_user_info_service());
 
     let service_cp = service.clone();
 
     // 开启用户信息的web服务
     let userinfo_web_task = thread::spawn(|| {
-        userinfo_web::start_webserver_userinfo(service_cp, socket_config)
-            .expect("webserver start fail!")
+        userinfo_web::start_webserver_userinfo(service_cp).expect("webserver start fail!")
     });
 
     let service_cp2 = service.clone();

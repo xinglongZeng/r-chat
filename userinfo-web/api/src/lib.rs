@@ -7,7 +7,7 @@ use actix_web::{
     error, get, middleware, post, web, App, Error, HttpRequest, HttpResponse, HttpServer,
     Responder, Result,
 };
-use common::config::TcpSocketConfig;
+use common::config::{TcpSocketConfig, WebSocketConfig};
 use derive_more::Display;
 use entity::userinfo;
 use entity::userinfo::Model;
@@ -238,10 +238,9 @@ fn init(cfg: &mut web::ServiceConfig) {
 }
 
 #[actix_web::main]
-pub async fn api_start_web_server_new(
-    user_service: Arc<Service>,
-    socket_config: TcpSocketConfig,
-) -> std::io::Result<()> {
+pub async fn api_start_web_server_new(user_service: Arc<Service>) -> std::io::Result<()> {
+    let web_socket_config = WebSocketConfig::init_from_env();
+
     // load tera templates
     let templates = Tera::new(concat!(env!("CARGO_MANIFEST_DIR"), "/templates/**/*")).unwrap();
 
@@ -267,7 +266,7 @@ pub async fn api_start_web_server_new(
 
     server = match listenfd.take_tcp_listener(0)? {
         Some(listener) => server.listen(listener)?,
-        None => server.bind(socket_config.get_url())?,
+        None => server.bind(web_socket_config.get_url())?,
     };
 
     server.run().await

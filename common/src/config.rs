@@ -21,14 +21,36 @@ impl TcpSocketConfig {
     }
 }
 
-pub struct ClientDefaultConfig {
-    pub account_save_path:String,
+pub struct WebSocketConfig {
+    pub web_host: String,
+    pub web_port: String,
 }
 
-impl ClientDefaultConfig{
-    pub fn init_from_env()->Self{
+impl WebSocketConfig {
+    pub fn init_from_env() -> Self {
         dotenvy::dotenv().ok();
-        let account_save_path = env::var("CLIENT_ACCOUNT_SAVE_PATH").expect("CLIENT_ACCOUNT_SAVE_PATH is not set in .env file");
-        ClientDefaultConfig{account_save_path}
+
+        let web_host = env::var("WEB_HOST").expect("WEB_HOST is not set in .env file");
+
+        let web_port = env::var("WEB_PORT").expect("WEB_PORT is not set in .env file");
+
+        WebSocketConfig { web_host, web_port }
+    }
+
+    pub fn get_url(&self) -> String {
+        format!("{}:{}", self.web_host, self.web_port)
+    }
+}
+
+pub struct ClientDefaultConfig {
+    pub account_save_path: String,
+}
+
+impl ClientDefaultConfig {
+    pub fn init_from_env() -> Self {
+        dotenvy::dotenv().ok();
+        let account_save_path = env::var("CLIENT_ACCOUNT_SAVE_PATH")
+            .expect("CLIENT_ACCOUNT_SAVE_PATH is not set in .env file");
+        ClientDefaultConfig { account_save_path }
     }
 }

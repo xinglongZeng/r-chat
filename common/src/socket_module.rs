@@ -39,6 +39,11 @@ impl DefaultSocketModule {
             state: SocketModuleState::INIT,
         }
     }
+
+    pub fn stop(&mut self) -> bool {
+        self.state = SocketModuleState::STOPPED;
+        return true;
+    }
 }
 
 impl SocketModule for DefaultSocketModule {
@@ -63,6 +68,8 @@ impl SocketModule for DefaultSocketModule {
         }
 
         let listener = TcpListener::bind(config.get_url()).unwrap();
+
+        self.state = SocketModuleState::RUNNING;
 
         info!("##########  DefaultSocketModule started! ###########");
 
@@ -98,6 +105,7 @@ struct ParseResult {
 pub enum SocketModuleState {
     INIT,
     RUNNING,
+    STOPPING,
     STOPPED,
 }
 
