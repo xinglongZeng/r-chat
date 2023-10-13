@@ -1,3 +1,3 @@
 pub fn main() {
-    server::start_server_new();
+    server::start_server();
 }

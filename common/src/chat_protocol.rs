@@ -1,4 +1,3 @@
-use crate::biz_module::DefaultBizModule;
 use core::cmp::Eq;
 use derive_more::Display;
 use enum_index::{EnumIndex, IndexEnum};
@@ -40,8 +39,7 @@ pub enum ProtocolFieldNameEnum {
 
 #[derive(Debug, Clone, EnumIndex, IndexEnum, Hash, Serialize, Deserialize)]
 pub enum ChatCommand {
-    Login_req,
-    Login_resp,
+    Login,
     Chat,
     P2p,
 }
@@ -211,86 +209,6 @@ pub struct ProtocolCacheData {
     stream: TcpStream,
 
     data: Option<Protocol>,
-}
-
-pub fn parse_tcp_stream(
-    stream: TcpStream,
-    address: SocketAddr,
-    all_cache: &mut HashMap<SocketAddr, ProtocolCacheData>,
-    default_biz: &mut DefaultBizModule,
-) {
-    let mut pca = match all_cache.remove(&address) {
-        Some(mut t) => {
-            match t.data {
-                None => t.data = Some(Protocol::create_new()),
-                Some(_) => {}
-            }
-            t
-        }
-
-        None => ProtocolCacheData {
-            stream,
-            data: Some(Protocol::create_new()),
-        },
-    };
-
-    let mut buf = [0; 128];
-
-    let mut remain = pca.stream.read(&mut buf).unwrap();
-
-    let total_len = remain.clone();
-
-    let mut index = 0;
-
-    let buffer = buf.to_vec();
-
-    while remain > 0 {
-        let len = fill(
-            pca.data.as_mut().unwrap(),
-            &buffer,
-            index.clone(),
-            total_len.clone(),
-        );
-
-        remain -= len;
-
-        index += len.clone();
-
-        if pca.data.as_ref().unwrap().completion() {
-            let resp = default_biz.handle_pkg(pca.data.as_ref().unwrap(), address.clone());
-            if resp.is_some() {
-                pca.stream
-                    .write_all(&resp.unwrap())
-                    .expect("stream send resp occurs fail !");
-            }
-            if remain > 0 {
-                pca.data = Some(Protocol::create_new());
-            }
-        }
-    }
-
-    if !pca.data.as_ref().unwrap().completion() {
-        all_cache.insert(address, pca);
-    }
-}
-
-fn fill(pkg: &mut Protocol, all_bytes: &Vec<u8>, mut index: usize, total_len: usize) -> usize {
-    while index < total_len && !pkg.completion() {
-        for field_name in Protocol::get_all_filed_name() {
-            // 如果字段没有填充完成，则进行填充
-            if !pkg.check_field_fill(&field_name) {
-                let len = pkg.get_diff_size(&field_name);
-
-                let bytes: Vec<u8> = all_bytes[index..index.clone() + len].to_vec();
-
-                pkg.fill_field(&field_name, bytes);
-
-                index += len.clone();
-            }
-        }
-    }
-
-    return index;
 }
 
 //解析结果

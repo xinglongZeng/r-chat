@@ -1,7 +1,6 @@
-use common::chat_module::{ChatContent, ChatData, ChatFileContent, ChatTextContent};
-use common::chat_protocol::{ChatCommand, Protocol};
-use common::protocol_factory::HandleProtocolFactory;
-use log::warn;
+use crate::chat_module::{ChatContent, ChatData, ChatFileContent, ChatTextContent};
+use crate::chat_protocol::{ChatCommand, Protocol};
+use crate::protocol_factory::HandleProtocolFactory;
 use std::collections::HashMap;
 use std::error::Error;
 use std::io::{Read, Write};
@@ -42,12 +41,24 @@ impl TcpServer {
 
     pub fn start(&mut self) {
         self.state = TcpServerState::RUNNING;
-
-        start_server_accept(self);
+        self.start_server_accept();
     }
 
     pub fn stop(&mut self) {
         self.state = TcpServerState::STOPPED;
+    }
+
+    fn start_server_accept(&mut self) {
+        let listener = TcpListener::bind(self.addr.clone()).unwrap();
+
+        println!("##########  TcpServer started! ###########");
+
+        while self.state == TcpServerState::RUNNING {
+            let (stream, address) = listener.accept().unwrap();
+            parse_tcp_stream(stream, address, &mut self.all_conn_cache, &mut self.factory);
+        }
+
+        println!("##########  TcpServer stopped! ###########");
     }
 }
 
@@ -57,80 +68,66 @@ pub struct ProtocolCacheData {
     data: Option<Protocol>,
 }
 
-fn start_server_accept(server: &mut TcpServer) {
-    let listener = TcpListener::bind(server.addr.clone()).unwrap();
-
-    println!("##########  TcpServer started! ###########");
-
-    while server.state == TcpServerState::RUNNING {
-        let (stream, address) = listener.accept().unwrap();
-        parse_tcp_stream(
-            stream,
-            address,
-            &mut server.all_conn_cache,
-            &mut server.factory,
-        );
-    }
-
-    println!("##########  TcpServer stopped! ###########");
-}
-
 fn parse_tcp_stream(
     stream: TcpStream,
     address: SocketAddr,
     all_cache: &mut HashMap<SocketAddr, ProtocolCacheData>,
     factory: &mut HandleProtocolFactory,
 ) {
-    match all_cache.get_mut(&address) {
-        Some(t) => match t.data {
-            None => t.data = Some(Protocol::create_new()),
-            Some(_) => {}
-        },
-
-        None => {
-            let cache_data = ProtocolCacheData {
-                stream,
-                data: Some(Protocol::create_new()),
-            };
-
-            all_cache.insert(address, cache_data);
+    let mut pca = match all_cache.remove(&address) {
+        Some(mut t) => {
+            match t.data {
+                None => t.data = Some(Protocol::create_new()),
+                Some(_) => {}
+            }
+            t
         }
+
+        None => ProtocolCacheData {
+            stream,
+            data: Some(Protocol::create_new()),
+        },
     };
 
     let mut buf = [0; 128];
 
-    let cache = all_cache.get_mut(&address).unwrap();
-
-    let mut remain = cache.stream.read(&mut buf).unwrap();
+    let mut remain = pca.stream.read(&mut buf).unwrap();
 
     let total_len = remain.clone();
 
     let mut index = 0;
 
-    let mut pkg = cache.data.as_mut().unwrap();
-
     let buffer = buf.to_vec();
 
     while remain > 0 {
-        let len = fill(&mut pkg, &buffer, index.clone(), total_len.clone());
+        let len = fill(
+            pca.data.as_mut().unwrap(),
+            &buffer,
+            index.clone(),
+            total_len.clone(),
+        );
 
         remain -= len;
 
         index += len.clone();
 
-        if pkg.completion() {
-            let handle_result = handle_pkg(&pkg, address.clone(), factory);
-            match handle_result {
-                None => {}
-                Some(t) => {
-                    // 使用stream发送
-                    let send_result = cache.stream.write_all(t.as_slice());
-                    if send_result.is_err() {
-                        warn!("send data to socket:{}  fail!", address.clone());
-                    }
-                }
+        if pca.data.as_ref().unwrap().completion() {
+            let resp = handle_pkg(pca.data.as_ref().unwrap(), address.clone(), factory);
+
+            if resp.is_some() {
+                pca.stream
+                    .write_all(&resp.unwrap())
+                    .expect("stream send resp occurs fail !");
+            }
+
+            if remain > 0 {
+                pca.data = Some(Protocol::create_new());
             }
         }
+    }
+
+    if !pca.data.as_ref().unwrap().completion() {
+        all_cache.insert(address, pca);
     }
 }
 

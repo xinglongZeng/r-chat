@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 
 pub trait HandlerProtocolData {
-    fn handle(&mut self, address: SocketAddr, a: &Vec<u8>) -> Option<Vec<u8>>;
+    fn handle(&mut self, address: SocketAddr, data: &Vec<u8>) -> Option<Vec<u8>>;
 }
 
 pub struct HandleProtocolFactory {

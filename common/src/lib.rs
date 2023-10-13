@@ -1,26 +1,20 @@
-use crate::biz_module::DefaultBizModule;
 use crate::chat_module::ChatModule;
-use crate::login_module::{LoginModule, TestLoginActor};
 use crate::p2p_module::P2pModule;
-use crate::socket_module::SocketModule;
 use crate::storage_module::StorageModule;
 use crate::ui_module::UiModule;
-use actix::{Actor, Addr, Context};
 use std::any::Any;
-use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::Arc;
 
-pub mod biz_module;
 pub mod chat_module;
 pub mod chat_protocol;
 pub mod config;
 pub mod login_module;
 pub mod p2p_module;
 pub mod protocol_factory;
-pub mod socket_module;
 pub mod storage_module;
 pub mod ui_module;
+
+pub mod base;
 
 pub mod errors_define;
 
@@ -33,8 +27,4 @@ pub enum ModuleNameEnum {
     Storage,
     Ui,
     Login,
-}
-
-pub trait CommonModule {
-    fn handle_byte_on_socket(&mut self, bytes: Vec<u8>, address: SocketAddr) -> Option<Vec<u8>>;
 }
