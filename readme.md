@@ -1,16 +1,1 @@
-client端功能模块:
-1. socket模块: 创建、管理socket、接受和发送报文;
-2. 报文解析模块: 将从socket获取的数据报文解析为业务报文,或者从业务报文解析为socket报文;
-3. 业务报文处理模块: 包括登录、聊天的业务报文、P2P的业务报文、其他。 并且支持扩展；
-4. 存储模块：存储聊天记录、登录的账户信息、
-5. ui模块：图形界面展示
-6. 聊天模块: 发送聊天信息、接受聊天信息、存储聊天信息、查询聊天信息
-
-
-
-
-server端功能模块：
-
-1. web页面：用户数据的crud
-2. socket模块：  创建、管理socket、接受和发送报文;
-3. p2p模块：协助进行p2p打洞；
+introduce: im software that can be used for p2p communication written in rust language, including server side and client side 2.
