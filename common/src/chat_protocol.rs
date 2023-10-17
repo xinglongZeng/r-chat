@@ -3,46 +3,12 @@ use derive_more::Display;
 use enum_index::{EnumIndex, IndexEnum};
 use enum_index_derive::{EnumIndex, IndexEnum};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fmt::Debug;
-
+use std::io::{Read, Write};
+use std::net::{SocketAddr, TcpStream};
 
 static MAX_DATA_LEN: u64 = u32::MAX as u64;
-
-
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ChatData{
-    pub from_account: String,
-    pub to_account: String,
-    pub contents:Vec<ChatContent>,
-}
-
-
-#[derive(Debug, Serialize, Deserialize)]
-pub enum ChatContent{
-    Text(ChatTextContent),
-    File(ChatFileContent),
-}
-
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ChatTextContent {
-    pub text:String,
-}
-
-
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ChatFileContent {
-    pub file_name:String,
-    pub data:Vec<u8>,
-}
-
-
-
-
-
-
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Protocol {
@@ -71,12 +37,11 @@ pub enum ProtocolFieldNameEnum {
     data,
 }
 
-#[derive(Debug, Clone, EnumIndex, IndexEnum, Hash,Serialize, Deserialize)]
+#[derive(Debug, Clone, EnumIndex, IndexEnum, Hash, Serialize, Deserialize)]
 pub enum ChatCommand {
-    LoginReq,
-    LoginResp,
+    Login,
     Chat,
-    ReadyNat,
+    P2p,
 }
 
 impl PartialEq<Self> for ChatCommand {
@@ -99,14 +64,11 @@ impl ChatCommand {
 }
 
 impl Protocol {
-    // todo: 序列化
     pub fn to_vec(&mut self) -> Vec<u8> {
         let mut v = vec![];
         v.append(self.version.as_mut().unwrap());
         v.append(self.data_type.as_mut().unwrap());
         v.append(self.data_len.as_mut().unwrap());
-        // v.append(self.source_id.as_mut().unwrap());
-        // v.append(self.target_id.as_mut().unwrap());
         v.append(self.data.as_mut().unwrap());
         v
     }
@@ -116,8 +78,6 @@ impl Protocol {
             version: None,
             data_type: None,
             data_len: None,
-            // source_id: None,
-            // target_id: None,
             data: None,
         }
     }
@@ -139,8 +99,6 @@ impl Protocol {
             ProtocolFieldNameEnum::version,
             ProtocolFieldNameEnum::data_type,
             ProtocolFieldNameEnum::data_len,
-            // ProtocolFieldNameEnum::source_id,
-            // ProtocolFieldNameEnum::target_id,
             ProtocolFieldNameEnum::data,
         ]
     }
@@ -148,7 +106,6 @@ impl Protocol {
     // 检查指定字段的数据是否填充完整
     pub fn check_field_fill(&self, field_key: &ProtocolFieldNameEnum) -> bool {
         let field = self.get_field(field_key);
-
         return field.is_some() && field.unwrap().len() == self.get_field_usize(field_key);
     }
 
@@ -158,8 +115,6 @@ impl Protocol {
             ProtocolFieldNameEnum::version => self.version.as_ref(),
             ProtocolFieldNameEnum::data_type => self.data_type.as_ref(),
             ProtocolFieldNameEnum::data_len => self.data_len.as_ref(),
-            // ProtocolFieldNameEnum::source_id => self.source_id.as_ref(),
-            // ProtocolFieldNameEnum::target_id => self.target_id.as_ref(),
             ProtocolFieldNameEnum::data => self.data.as_ref(),
             _ => panic!("can not support field name : {field_name} "),
         };
@@ -204,8 +159,6 @@ impl Protocol {
                     ProtocolFieldNameEnum::version => self.version = v,
                     ProtocolFieldNameEnum::data_type => self.data_type = v,
                     ProtocolFieldNameEnum::data_len => self.data_len = v,
-                    // ProtocolFieldNameEnum::source_id => self.source_id = v,
-                    // ProtocolFieldNameEnum::target_id => self.target_id = v,
                     ProtocolFieldNameEnum::data => self.data = v,
                     _ => {}
                 }
@@ -219,8 +172,6 @@ impl Protocol {
             ProtocolFieldNameEnum::version => self.version.as_mut(),
             ProtocolFieldNameEnum::data_type => self.data_type.as_mut(),
             ProtocolFieldNameEnum::data_len => self.data_len.as_mut(),
-            // ProtocolFieldNameEnum::source_id => self.source_id.as_mut(),
-            // ProtocolFieldNameEnum::target_id => self.target_id.as_mut(),
             ProtocolFieldNameEnum::data => self.data.as_mut(),
             _ => panic!("can not support field name : {field_name} ."),
         };
@@ -252,4 +203,27 @@ pub fn calculate_len_by_data(data: &Vec<u8>) -> Vec<u8> {
     }
 
     (len as u32).to_be_bytes().to_vec()
+}
+
+pub struct ProtocolCacheData {
+    stream: TcpStream,
+
+    data: Option<Protocol>,
+}
+
+//解析结果
+pub struct ParseResult {
+    // 是否解析完成
+    finished: bool,
+    // 已经解析出来的协议数据，注意，可能该协议数据并不完整
+    protocol: Protocol,
+    // 剩余的还未解析的字节数据
+    remain: Vec<u8>,
+}
+
+/** socket报文解析的module
+ **/
+trait ParseProtocolModule<T> {
+    // 解析字节数据为协议报文数据
+    fn parse_bytes_to_protocol(addr: SocketAddr, data: Vec<u8>) -> ParseResult;
 }

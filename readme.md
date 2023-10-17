@@ -1,5 +1,1 @@
-#   practice rust with chat
-## features:
-    1. async socket
-    2. web server
-    3. nat
+introduce: im software that can be used for p2p communication written in rust language, including server side and client side 2.
