@@ -3,7 +3,6 @@ use crate::p2p_module::P2pModule;
 use crate::storage_module::StorageModule;
 use crate::ui_module::UiModule;
 use std::any::Any;
-use std::net::SocketAddr;
 
 pub mod chat_module;
 pub mod chat_protocol;

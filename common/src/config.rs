@@ -7,6 +7,10 @@ pub struct TcpSocketConfig {
 }
 
 impl TcpSocketConfig {
+    pub fn get_default_server_socket_config() -> Self {
+        TcpSocketConfig::init_from_env("SERVER_TCP_HOST", "SERVER_TCP_PORT")
+    }
+
     pub fn init_from_env<K: AsRef<OsStr>>(host_name: K, port_name: K) -> Self {
         dotenvy::dotenv().ok();
 

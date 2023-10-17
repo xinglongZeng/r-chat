@@ -1,51 +1,111 @@
 use crate::chat_module::{ChatContent, ChatData, ChatFileContent, ChatTextContent};
 use crate::chat_protocol::{ChatCommand, Protocol};
 use crate::protocol_factory::HandleProtocolFactory;
+use log::info;
 use std::collections::HashMap;
 use std::error::Error;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
 
 #[derive(PartialEq, Clone, Copy, Debug)]
-pub enum TcpServerState {
+pub enum TcpSideState {
     INIT,
     RUNNING,
     STOPPED,
 }
 
-pub struct TcpServer {
+pub struct TcpClientSide {
+    local_addr: SocketAddr,
+    server_side: Option<TcpServerSide>,
+}
+
+impl TcpClientSide {
+    pub fn get_state(&self) -> &TcpSideState {
+        &self.server_side.as_ref().unwrap().state
+    }
+
+    pub fn new(server_side_address: SocketAddr, factory: HandleProtocolFactory) -> Self {
+        // 连接server端，得到stream
+        let server_stream = TcpStream::connect(server_side_address).expect("连接server端失败!");
+
+        // 从stream中得到本地使用的地址
+        let local_addr = server_stream.local_addr().unwrap();
+
+        info!("client使用端口地址:{}", local_addr.to_string());
+
+        let mut client = TcpClientSide {
+            local_addr,
+            server_side: None,
+        };
+
+        // 用local_addr创建tcpServerSide
+        let mut server = TcpServerSide::new(local_addr.to_string(), factory);
+
+        let cache_data = ProtocolCacheData {
+            stream: server_stream,
+            data: None,
+        };
+
+        server.add_stream(server_side_address, cache_data);
+
+        client.server_side = Some(server);
+
+        client
+    }
+
+    // invoke this function , current thread will be loop to execute handle accept request.
+    pub fn start(&mut self) {
+        self.server_side.as_mut().unwrap().start();
+    }
+}
+
+pub struct TcpServerSide {
     // addr必须是 "ip:port"的格式
     addr: String,
     factory: HandleProtocolFactory,
-    state: TcpServerState,
+    state: TcpSideState,
     all_conn_cache: HashMap<SocketAddr, ProtocolCacheData>,
 }
 
-impl TcpServer {
+impl TcpServerSide {
+    /***
+     ***    insert new value to all_conn_cache , but if already had key , then return false,else return ture.
+     ***
+     ***/
+    pub fn add_stream(&mut self, addr: SocketAddr, stream_cache: ProtocolCacheData) -> bool {
+        match self.all_conn_cache.contains_key(&addr) {
+            // note: if already had key , can not insert new value
+            true => {
+                return false;
+            }
+
+            false => {
+                self.all_conn_cache.insert(addr, stream_cache);
+                return true;
+            }
+        }
+    }
+
     pub fn new(addr: String, factory: HandleProtocolFactory) -> Self {
-        TcpServer {
+        TcpServerSide {
             addr,
             factory,
-            state: TcpServerState::INIT,
+            state: TcpSideState::INIT,
             all_conn_cache: Default::default(),
         }
     }
 
-    pub fn get_state(&self) -> &TcpServerState {
+    pub fn get_state(&self) -> &TcpSideState {
         &self.state
     }
 
-    // pub fn get_state_by_mut(&mut self)->&TcpServerState{
-    //     &self.state
-    // }
-
     pub fn start(&mut self) {
-        self.state = TcpServerState::RUNNING;
+        self.state = TcpSideState::RUNNING;
         self.start_server_accept();
     }
 
     pub fn stop(&mut self) {
-        self.state = TcpServerState::STOPPED;
+        self.state = TcpSideState::STOPPED;
     }
 
     fn start_server_accept(&mut self) {
@@ -53,7 +113,7 @@ impl TcpServer {
 
         println!("##########  TcpServer started! ###########");
 
-        while self.state == TcpServerState::RUNNING {
+        while self.state == TcpSideState::RUNNING {
             let (stream, address) = listener.accept().unwrap();
             parse_tcp_stream(stream, address, &mut self.all_conn_cache, &mut self.factory);
         }

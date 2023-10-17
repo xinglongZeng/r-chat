@@ -1,4 +1,4 @@
-use common::base::TcpServer;
+use common::base::{TcpClientSide, TcpServerSide};
 use common::chat_protocol::ChatCommand;
 use common::config::TcpSocketConfig;
 use common::login_module::{BizResult, ClientLoginModule, DefaultLoginHandler, LoginRespData};
@@ -7,7 +7,9 @@ use env_logger::Env;
 use log::warn;
 use std::fmt::Error;
 use std::fs::File;
+use std::net::{SocketAddr, SocketAddrV4};
 use std::os::unix::fs::FileExt;
+use std::str::FromStr;
 use std::{env, fs};
 
 pub fn start_client() {
@@ -19,17 +21,20 @@ pub fn start_client() {
 
     // start trace info collect.  开启堆栈信息收集
     // tracing_subscriber::fmt::init();
+
+    start_client_socket();
 }
 
 fn start_client_socket() {
     let factory = create_factory();
 
-    let config = TcpSocketConfig::init_from_env("CLIENT_TCP_HOST", "CLIENT_TCP_PORT");
+    let server_addr = env::var("SERVER_ADDRESS").expect("SERVER_ADDRESS is not set in .env file");
 
-    // todo: 修改tcpServer为tcpClient，然后向server端发起请求
-    let mut server = TcpServer::new(config.get_url(), factory);
+    let server_socket = SocketAddrV4::from_str(server_addr.as_str()).unwrap();
 
-    server.start();
+    let mut client = TcpClientSide::new(SocketAddr::V4(server_socket), factory);
+
+    client.start();
 }
 
 fn create_factory() -> HandleProtocolFactory {
@@ -44,11 +49,11 @@ fn create_factory() -> HandleProtocolFactory {
 }
 
 fn create_default_client_login_handler() -> Box<DefaultLoginHandler> {
-    let client = DefaultClientLoginModule::init_from_env();
+    let client_login = DefaultClientLoginModule::init_from_env();
     Box::new(DefaultLoginHandler::new(
         false,
         None,
-        Some(Box::new(client)),
+        Some(Box::new(client_login)),
     ))
 }
 

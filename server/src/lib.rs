@@ -1,4 +1,4 @@
-use common::base::TcpServer;
+use common::base::TcpServerSide;
 use common::chat_module::ChatData;
 use common::chat_protocol::ChatCommand;
 use common::config::TcpSocketConfig;
@@ -130,9 +130,9 @@ fn init_user_info_service() -> Service {
 fn start_socket(user_service: Arc<Service>) {
     let factory = create_factory(user_service);
 
-    let config = TcpSocketConfig::init_from_env("SERVER_TCP_HOST", "SERVER_TCP_PORT");
+    let config = TcpSocketConfig::get_default_server_socket_config();
 
-    let mut server = TcpServer::new(config.get_url(), factory);
+    let mut server = TcpServerSide::new(config.get_url(), factory);
 
     server.start();
 }
