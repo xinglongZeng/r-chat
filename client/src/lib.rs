@@ -1,4 +1,4 @@
-use common::base::{RchatCommand, TcpClientSide};
+use common::base::{RchatCommand, RcommandResult, TcpClientSide};
 use common::cli::CliOpt;
 use common::login_module::{BizResult, ClientLoginModule, DefaultLoginHandler, LoginRespData};
 use common::protocol_factory::HandleProtocolFactory;
@@ -7,10 +7,12 @@ use env_logger::Env;
 use log::warn;
 use std::fmt::Error;
 use std::fs::File;
+use std::io::{self, Write};
 use std::net::{SocketAddr, SocketAddrV4};
 use std::os::unix::fs::FileExt;
 use std::str::FromStr;
-use std::sync::{Arc, Mutex};
+use std::sync::mpsc;
+use std::sync::mpsc::{Receiver, Sender};
 use std::{env, fs, thread};
 
 pub fn start_client_mode() {
@@ -23,36 +25,52 @@ pub fn start_client_mode() {
     // start trace info collect.  开启堆栈信息收集
     // tracing_subscriber::fmt::init();
 
-    start_client_socket();
+    // 通道1，接受和处理command
+    let (command_tx, command_rx) = mpsc::channel();
 
-    let cli = CliOpt::from_args();
+    // 通道2，接受和处理command的执行结果
+    let (command_result_tx, command_result_rx) = mpsc::channel();
 
-    let mutex = Arc::new(Mutex::new(false));
+    start_cli_listen(command_tx, command_result_rx);
 
-    handle_cli(cli, mutex);
+    start_client_socket(command_rx, command_result_tx);
 }
 
-// 处理命令行参数
-fn handle_cli(cli: CliOpt, mutex: Arc<Mutex<bool>>) {
-    let command = RchatCommand::from_string(cli.command.as_str());
+/// 开启子线程来监听cli的参数，然后通过消息通道的方式讲参数传送到处理socket的线程
+fn start_cli_listen(command_tx: Sender<RchatCommand>, command_result_rx: Receiver<RcommandResult>) {
+    let cli_task = thread::spawn(move || {
+        loop {
+            let cli = CliOpt::from_args();
+            println!("接收到的command参数:{:?}", cli);
 
-    match command {
-        RchatCommand::Start => {
-            let mutex_clone = Arc::clone(&mutex);
-            // todo: 尝试用新建thread执行start
-            let task= thread::spawn(move || {
-                let mut client_side = create_client_side();
-                let mut lock = mutex_clone.lock().unwrap();
-                *lock = true;
-                client_side.start();
-            });
-            
-            task.join().expect("[ handle_cli ] start fail !");
+            let command = RchatCommand::from_string(cli.command.as_str());
+            // 通过消息通道发送到主线程处理
+            let send_result = command_tx.send(command.clone());
+
+            if send_result.is_err() {
+                println!("command channel send fail! command:{:?}", command);
+            }
+            // 从通道接收执行结果
+            let handle_result = command_result_rx.recv().unwrap();
+            // 处理 result
+            handle_command_result(handle_result);
         }
-        RchatCommand::Login => {}
-        RchatCommand::Chat => {}
-        RchatCommand::P2p => {}
-    }
+    });
+
+    cli_task.join().unwrap();
+}
+
+// 处理command的执行结果
+fn handle_command_result(result: RcommandResult) {
+    println!("开始处理 RcommandResult: {:?}", result);
+    // 获得 stdout 实体
+    let stdout = io::stdout();
+
+    // 可选: 把  stdout 的 控制权 包裹进一个 buffer
+    let mut handle = io::BufWriter::new(stdout);
+
+    // 终端上输出执行结果
+    writeln!(handle, "command-result: {:?}", result).expect("输出commande结果到终端失败!");
 }
 
 // 创建TcpClientSide
@@ -68,10 +86,12 @@ pub fn create_client_side() -> TcpClientSide {
     client
 }
 
-fn start_client_socket() {
+fn start_client_socket(
+    command_rx: Receiver<RchatCommand>,
+    command_result_tx: Sender<RcommandResult>,
+) {
     let mut client = create_client_side();
-
-    client.start();
+    client.start(command_rx, command_result_tx);
 }
 
 fn create_factory() -> HandleProtocolFactory {

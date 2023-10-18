@@ -1,16 +1,17 @@
-use common::cli::CliOpt;
 use common::structopt::StructOpt;
 pub fn main() {
-    let cli = CliOpt::from_args();
-    println!("cli:{:?}", cli);
-
-    // server::start_server();
+    client::start_client_mode();
 }
 
 #[cfg(test)]
 mod tests {
     use common::cli::CliOpt;
     use common::structopt::StructOpt;
+
+    #[test]
+    fn start_server_side() {
+        server::start_server();
+    }
 
     #[test]
     fn start_client_side() {
