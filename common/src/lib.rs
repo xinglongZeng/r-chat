@@ -13,9 +13,13 @@ pub mod protocol_factory;
 pub mod storage_module;
 pub mod ui_module;
 
+pub mod cli;
+
 pub mod base;
 
 pub mod errors_define;
+
+pub use structopt;
 
 #[derive(Debug, Eq, PartialEq, Hash)]
 pub enum ModuleNameEnum {

@@ -1,12 +1,55 @@
 use crate::chat_module::{ChatContent, ChatData, ChatFileContent, ChatTextContent};
-use crate::chat_protocol::{ChatCommand, Protocol};
+use crate::chat_protocol::Protocol;
 use crate::protocol_factory::HandleProtocolFactory;
+use enum_index::{EnumIndex, IndexEnum};
+use enum_index_derive::{EnumIndex, IndexEnum};
 use log::info;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::error::Error;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
+use std::sync::{Arc, Mutex};
+use std::thread;
 
+#[derive(Debug, Clone, EnumIndex, IndexEnum, Hash, Serialize, Deserialize)]
+pub enum RchatCommand {
+    Login,
+    Chat,
+    P2p,
+    Start,
+}
+
+impl PartialEq<Self> for RchatCommand {
+    fn eq(&self, other: &Self) -> bool {
+        self.enum_index() == other.enum_index()
+    }
+}
+
+impl Eq for RchatCommand {}
+
+impl RchatCommand {
+    pub fn from_string(command: &str) -> Self {
+        match command {
+            "start" => RchatCommand::Start,
+            "login" => RchatCommand::Login,
+            "p2p" => RchatCommand::P2p,
+            "chat" => RchatCommand::Chat,
+            _ => {
+                panic!("不支持的command:{}", command)
+            }
+        }
+    }
+
+    pub fn to_data_type(self) -> Vec<u8> {
+        let v = self as u8;
+        vec![v]
+    }
+
+    pub fn to_self(b: u8) -> Self {
+        RchatCommand::index_enum(b as usize).unwrap()
+    }
+}
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum TcpSideState {
     INIT,
@@ -21,7 +64,7 @@ pub struct TcpClientSide {
 
 impl TcpClientSide {
     pub fn get_state(&self) -> &TcpSideState {
-        &self.server_side.as_ref().unwrap().state
+        self.server_side.as_ref().unwrap().get_state()
     }
 
     pub fn new(server_side_address: SocketAddr, factory: HandleProtocolFactory) -> Self {
@@ -62,9 +105,9 @@ impl TcpClientSide {
 pub struct TcpServerSide {
     // addr必须是 "ip:port"的格式
     addr: String,
-    factory: HandleProtocolFactory,
-    state: TcpSideState,
-    all_conn_cache: HashMap<SocketAddr, ProtocolCacheData>,
+    factory: Arc<HandleProtocolFactory>,
+    state: Arc<Mutex<TcpSideState>>,
+    all_conn_cache: Arc<HashMap<SocketAddr, ProtocolCacheData>>,
 }
 
 impl TcpServerSide {
@@ -89,35 +132,40 @@ impl TcpServerSide {
     pub fn new(addr: String, factory: HandleProtocolFactory) -> Self {
         TcpServerSide {
             addr,
-            factory,
-            state: TcpSideState::INIT,
-            all_conn_cache: Default::default(),
+            factory: Arc::new(factory),
+            state: Arc::new(Mutex::new(TcpSideState::INIT)),
+            all_conn_cache: Arc::new(Default::default()),
         }
     }
 
     pub fn get_state(&self) -> &TcpSideState {
-        &self.state
+        self.state.as_ref().into_inner().as_ref().unwrap()
     }
 
     pub fn start(&mut self) {
-        self.state = TcpSideState::RUNNING;
         self.start_server_accept();
+        *self.state.lock().unwrap() = TcpSideState::RUNNING;
     }
 
     pub fn stop(&mut self) {
-        self.state = TcpSideState::STOPPED;
+        *self.state.lock().unwrap() = TcpSideState::STOPPED;
     }
 
     fn start_server_accept(&mut self) {
-        let listener = TcpListener::bind(self.addr.clone()).unwrap();
+        let state_lock = Arc::clone(&self.state);
+        let addr = self.addr.clone();
+        let arc_cach = Arc::clone(&self.all_conn_cache);
+        let arc_factory = Arc::clone(&self.factory);
 
-        println!("##########  TcpServer started! ###########");
-
-        while self.state == TcpSideState::RUNNING {
-            let (stream, address) = listener.accept().unwrap();
-            parse_tcp_stream(stream, address, &mut self.all_conn_cache, &mut self.factory);
-        }
-
+        let t = thread::spawn(move || {
+            let listener = TcpListener::bind(addr).unwrap();
+            println!("##########  TcpServer started! ###########");
+            while state_lock.into_inner().unwrap() == TcpSideState::RUNNING {
+                let (stream, address) = listener.accept().unwrap();
+                parse_tcp_stream(stream, address, arc_cach, arc_factory);
+            }
+        });
+        t.join();
         println!("##########  TcpServer stopped! ###########");
     }
 }
@@ -131,8 +179,8 @@ pub struct ProtocolCacheData {
 fn parse_tcp_stream(
     stream: TcpStream,
     address: SocketAddr,
-    all_cache: &mut HashMap<SocketAddr, ProtocolCacheData>,
-    factory: &mut HandleProtocolFactory,
+    mut all_cache: Arc<HashMap<SocketAddr, ProtocolCacheData>>,
+    mut factory: Arc<HandleProtocolFactory>,
 ) {
     let mut pca = match all_cache.remove(&address) {
         Some(mut t) => {
@@ -172,7 +220,11 @@ fn parse_tcp_stream(
         index += len.clone();
 
         if pca.data.as_ref().unwrap().completion() {
-            let resp = handle_pkg(pca.data.as_ref().unwrap(), address.clone(), factory);
+            let resp = handle_pkg(
+                pca.data.as_ref().unwrap(),
+                address.clone(),
+                Arc::clone(&factory),
+            );
 
             if resp.is_some() {
                 pca.stream
@@ -213,11 +265,11 @@ fn fill(pkg: &mut Protocol, all_bytes: &Vec<u8>, mut index: usize, total_len: us
 fn handle_pkg(
     pkg: &Protocol,
     address: SocketAddr,
-    factory: &mut HandleProtocolFactory,
+    mut factory: Arc<HandleProtocolFactory>,
 ) -> Option<Vec<u8>> {
     // convert bytes to struct by type
     let data_type = pkg.data_type.as_ref().unwrap()[0].clone();
-    let command = ChatCommand::to_self(data_type);
+    let command = RchatCommand::to_self(data_type);
     let handler = factory.get_handler(&command);
     handler.handle(address, pkg.data.as_ref().unwrap())
 }

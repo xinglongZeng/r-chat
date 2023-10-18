@@ -11,6 +11,7 @@ common={path = "common"}
 server={path = "server"}
 client={path = "client"}
 
+
 [workspace]
 members=[".", "userinfo-web","common","server","client"]
 

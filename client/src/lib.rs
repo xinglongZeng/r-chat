@@ -1,8 +1,8 @@
-use common::base::{TcpClientSide, TcpServerSide};
-use common::chat_protocol::ChatCommand;
-use common::config::TcpSocketConfig;
+use common::base::{RchatCommand, TcpClientSide};
+use common::cli::CliOpt;
 use common::login_module::{BizResult, ClientLoginModule, DefaultLoginHandler, LoginRespData};
 use common::protocol_factory::HandleProtocolFactory;
+use common::structopt::StructOpt;
 use env_logger::Env;
 use log::warn;
 use std::fmt::Error;
@@ -10,9 +10,10 @@ use std::fs::File;
 use std::net::{SocketAddr, SocketAddrV4};
 use std::os::unix::fs::FileExt;
 use std::str::FromStr;
-use std::{env, fs};
+use std::sync::{Arc, Mutex};
+use std::{env, fs, thread};
 
-pub fn start_client() {
+pub fn start_client_mode() {
     // get env vars   读取.env文件中的变量，相当于读取配置文件
     dotenvy::dotenv().ok();
 
@@ -23,16 +24,52 @@ pub fn start_client() {
     // tracing_subscriber::fmt::init();
 
     start_client_socket();
+
+    let cli = CliOpt::from_args();
+
+    let mutex = Arc::new(Mutex::new(false));
+
+    handle_cli(cli, mutex);
 }
 
-fn start_client_socket() {
+// 处理命令行参数
+fn handle_cli(cli: CliOpt, mutex: Arc<Mutex<bool>>) {
+    let command = RchatCommand::from_string(cli.command.as_str());
+
+    match command {
+        RchatCommand::Start => {
+            let mutex_clone = Arc::clone(&mutex);
+            // todo: 尝试用新建thread执行start
+            let task= thread::spawn(move || {
+                let mut client_side = create_client_side();
+                let mut lock = mutex_clone.lock().unwrap();
+                *lock = true;
+                client_side.start();
+            });
+            
+            task.join().expect("[ handle_cli ] start fail !");
+        }
+        RchatCommand::Login => {}
+        RchatCommand::Chat => {}
+        RchatCommand::P2p => {}
+    }
+}
+
+// 创建TcpClientSide
+pub fn create_client_side() -> TcpClientSide {
     let factory = create_factory();
 
     let server_addr = env::var("SERVER_ADDRESS").expect("SERVER_ADDRESS is not set in .env file");
 
     let server_socket = SocketAddrV4::from_str(server_addr.as_str()).unwrap();
 
-    let mut client = TcpClientSide::new(SocketAddr::V4(server_socket), factory);
+    let client = TcpClientSide::new(SocketAddr::V4(server_socket), factory);
+
+    client
+}
+
+fn start_client_socket() {
+    let mut client = create_client_side();
 
     client.start();
 }
@@ -44,7 +81,7 @@ fn create_factory() -> HandleProtocolFactory {
     // todo: p2p handler
 
     let mut factory = HandleProtocolFactory::new();
-    factory.registry_handler(ChatCommand::Login, login_handler);
+    factory.registry_handler(RchatCommand::Login, login_handler);
     factory
 }
 

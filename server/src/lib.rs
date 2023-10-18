@@ -1,6 +1,5 @@
-use common::base::TcpServerSide;
+use common::base::{RchatCommand, TcpServerSide};
 use common::chat_module::ChatData;
-use common::chat_protocol::ChatCommand;
 use common::config::TcpSocketConfig;
 use common::login_module::{DefaultLoginHandler, LoginReqData, LoginRespData, ServerLoginModule};
 use common::p2p_module::{GetIpV4Req, P2pData};
@@ -147,9 +146,9 @@ fn create_factory(user_service: Arc<Service>) -> HandleProtocolFactory {
     let p2p_handler = Box::new(ServiceP2pHandler {});
 
     let mut factory = HandleProtocolFactory::new();
-    factory.registry_handler(ChatCommand::Login, login_handler);
-    factory.registry_handler(ChatCommand::Chat, chat_handler);
-    factory.registry_handler(ChatCommand::P2p, p2p_handler);
+    factory.registry_handler(RchatCommand::Login, login_handler);
+    factory.registry_handler(RchatCommand::Chat, chat_handler);
+    factory.registry_handler(RchatCommand::P2p, p2p_handler);
     factory
 }
 

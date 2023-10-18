@@ -1,11 +1,7 @@
-use core::cmp::Eq;
 use derive_more::Display;
-use enum_index::{EnumIndex, IndexEnum};
 use enum_index_derive::{EnumIndex, IndexEnum};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::fmt::Debug;
-use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream};
 
 static MAX_DATA_LEN: u64 = u32::MAX as u64;
@@ -35,32 +31,6 @@ pub enum ProtocolFieldNameEnum {
     source_id,
     target_id,
     data,
-}
-
-#[derive(Debug, Clone, EnumIndex, IndexEnum, Hash, Serialize, Deserialize)]
-pub enum ChatCommand {
-    Login,
-    Chat,
-    P2p,
-}
-
-impl PartialEq<Self> for ChatCommand {
-    fn eq(&self, other: &Self) -> bool {
-        self.enum_index() == other.enum_index()
-    }
-}
-
-impl Eq for ChatCommand {}
-
-impl ChatCommand {
-    pub fn to_data_type(self) -> Vec<u8> {
-        let v = self as u8;
-        vec![v]
-    }
-
-    pub fn to_self(b: u8) -> Self {
-        ChatCommand::index_enum(b as usize).unwrap()
-    }
 }
 
 impl Protocol {

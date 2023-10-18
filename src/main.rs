@@ -1,10 +1,16 @@
+use common::cli::CliOpt;
+use common::structopt::StructOpt;
 pub fn main() {
-    server::start_server();
+    let cli = CliOpt::from_args();
+    println!("cli:{:?}", cli);
+
+    // server::start_server();
 }
 
 #[cfg(test)]
 mod tests {
-    use std::net::{TcpListener, TcpStream};
+    use common::cli::CliOpt;
+    use common::structopt::StructOpt;
 
     #[test]
     fn start_client_side() {
@@ -12,6 +18,11 @@ mod tests {
         // server::start_server();
 
         // start_client也会阻塞当前线程，原因同上面一样
-        client::start_client();
+        client::start_client_mode();
+    }
+
+    #[test]
+    fn test_cliopt() {
+        let cli = CliOpt::from_args();
     }
 }

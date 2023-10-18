@@ -2,7 +2,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Error;
 use std::net::SocketAddr;
-use std::rc::Weak;
 use std::sync::RwLock;
 
 //聊天模块
