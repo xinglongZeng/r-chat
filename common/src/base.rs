@@ -12,6 +12,7 @@ use std::net::{SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
+use std::thread::JoinHandle;
 
 #[derive(Debug, Clone, EnumIndex, IndexEnum, Hash, Serialize, Deserialize)]
 pub enum RchatCommand {
@@ -110,27 +111,25 @@ impl TcpClientSide {
     }
 
     // invoke this function , current thread will be loop to execute handle accept request.
-    pub fn start(
-        &mut self,
-        command_rx: Receiver<RchatCommand>,
-        command_result_tx: Sender<RcommandResult>,
-    ) {
-        self.handle_rx(command_rx, command_result_tx);
+    pub fn start(&mut self) {
         self.server_side.as_mut().unwrap().start();
     }
+}
 
-    fn handle_rx(&mut self, rx: Receiver<RchatCommand>, command_result_tx: Sender<RcommandResult>) {
-        let task = thread::spawn(move || loop {
-            let command = rx.recv().unwrap();
-            println!("handle_rx 接收到 command:{:?}", command.clone());
-            let result = handle_command(command);
-            let s_result = command_result_tx.send(result);
-            if s_result.is_err() {
-                eprintln!("command result send fail ! ");
-            }
-        });
-        task.join().unwrap();
-    }
+pub fn handle_rx(
+    command_rx: Receiver<RchatCommand>,
+    command_result_tx: Sender<RcommandResult>,
+) -> JoinHandle<()> {
+    let task = thread::spawn(move || loop {
+        let command = command_rx.recv().unwrap();
+        println!("handle_rx 接收到 command:{:?}", command.clone());
+        let result = handle_command(command);
+        let s_result = command_result_tx.send(result);
+        if s_result.is_err() {
+            eprintln!("command result send fail ! ");
+        }
+    });
+    task
 }
 
 fn handle_command(command: RchatCommand) -> RcommandResult {

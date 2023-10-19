@@ -1,4 +1,4 @@
-use common::base::{RchatCommand, RcommandResult, TcpClientSide};
+use common::base::{handle_rx, RchatCommand, RcommandResult, TcpClientSide};
 use common::cli::CliOpt;
 use common::login_module::{BizResult, ClientLoginModule, DefaultLoginHandler, LoginRespData};
 use common::protocol_factory::HandleProtocolFactory;
@@ -11,8 +11,9 @@ use std::io::{self, Write};
 use std::net::{SocketAddr, SocketAddrV4};
 use std::os::unix::fs::FileExt;
 use std::str::FromStr;
-use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
+use std::sync::{mpsc, Arc};
+use std::thread::JoinHandle;
 use std::{env, fs, thread};
 
 pub fn start_client_mode() {
@@ -31,21 +32,41 @@ pub fn start_client_mode() {
     // 通道2，接受和处理command的执行结果
     let (command_result_tx, command_result_rx) = mpsc::channel();
 
-    start_cli_listen(command_tx, command_result_rx);
+    // start_client_socket();
 
-    start_client_socket(command_rx, command_result_tx);
+    let mut client = create_client_side();
+
+    let task1 = thread::spawn(move || {
+        client.start();
+    });
+
+    let task2 = handle_rx(command_rx, command_result_tx);
+
+    let task3 = start_cli_listen(command_tx, command_result_rx);
+
+    task1.join().expect("task join for client.start fail ! ");
+    task2.join().expect("task join for handle_rx fail ! ");
+    task3
+        .join()
+        .expect("task join for start_cli_listen fail ! ");
 }
 
 /// 开启子线程来监听cli的参数，然后通过消息通道的方式讲参数传送到处理socket的线程
-fn start_cli_listen(command_tx: Sender<RchatCommand>, command_result_rx: Receiver<RcommandResult>) {
+fn start_cli_listen(
+    command_tx: Sender<RchatCommand>,
+    command_result_rx: Receiver<RcommandResult>,
+) -> JoinHandle<()> {
     let cli_task = thread::spawn(move || {
         loop {
             let cli = CliOpt::from_args();
+
             println!("接收到的command参数:{:?}", cli);
 
             let command = RchatCommand::from_string(cli.command.as_str());
+
             // 通过消息通道发送到主线程处理
             let send_result = command_tx.send(command.clone());
+            println!("command 发送完成. {:?}", command);
 
             if send_result.is_err() {
                 println!("command channel send fail! command:{:?}", command);
@@ -57,7 +78,7 @@ fn start_cli_listen(command_tx: Sender<RchatCommand>, command_result_rx: Receive
         }
     });
 
-    cli_task.join().unwrap();
+    cli_task
 }
 
 // 处理command的执行结果
@@ -86,12 +107,9 @@ pub fn create_client_side() -> TcpClientSide {
     client
 }
 
-fn start_client_socket(
-    command_rx: Receiver<RchatCommand>,
-    command_result_tx: Sender<RcommandResult>,
-) {
+fn start_client_socket() {
     let mut client = create_client_side();
-    client.start(command_rx, command_result_tx);
+    client.start();
 }
 
 fn create_factory() -> HandleProtocolFactory {
