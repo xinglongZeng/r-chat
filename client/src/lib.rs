@@ -32,8 +32,6 @@ pub fn start_client_mode() {
     // 通道2，接受和处理command的执行结果
     let (command_result_tx, command_result_rx) = mpsc::channel();
 
-    // start_client_socket();
-
     let mut client = create_client_side();
 
     let task1 = thread::spawn(move || {
@@ -42,6 +40,7 @@ pub fn start_client_mode() {
 
     let task2 = handle_rx(command_rx, command_result_tx);
 
+    // todo: cli需要单独一个进程
     let task3 = start_cli_listen(command_tx, command_result_rx);
 
     task1.join().expect("task join for client.start fail ! ");
@@ -57,25 +56,23 @@ fn start_cli_listen(
     command_result_rx: Receiver<RcommandResult>,
 ) -> JoinHandle<()> {
     let cli_task = thread::spawn(move || {
-        loop {
-            let cli = CliOpt::from_args();
+        let cli = CliOpt::from_args();
 
-            println!("接收到的command参数:{:?}", cli);
+        log::info!("接收到的command参数:{:?}", cli);
 
-            let command = RchatCommand::from_string(cli.command.as_str());
+        let command = RchatCommand::from_string(cli.command.as_str());
 
-            // 通过消息通道发送到主线程处理
-            let send_result = command_tx.send(command.clone());
-            println!("command 发送完成. {:?}", command);
+        // 通过消息通道发送到主线程处理
+        let send_result = command_tx.send(command.clone());
+        log::info!("command 发送完成. {:?}", command);
 
-            if send_result.is_err() {
-                println!("command channel send fail! command:{:?}", command);
-            }
-            // 从通道接收执行结果
-            let handle_result = command_result_rx.recv().unwrap();
-            // 处理 result
-            handle_command_result(handle_result);
+        if send_result.is_err() {
+            log::info!("command channel send fail! command:{:?}", command);
         }
+        // 从通道接收执行结果
+        let handle_result = command_result_rx.recv().unwrap();
+        // 处理 result
+        handle_command_result(handle_result);
     });
 
     cli_task
@@ -83,7 +80,7 @@ fn start_cli_listen(
 
 // 处理command的执行结果
 fn handle_command_result(result: RcommandResult) {
-    println!("开始处理 RcommandResult: {:?}", result);
+    log::info!("开始处理 RcommandResult: {:?}", result);
     // 获得 stdout 实体
     let stdout = io::stdout();
 
@@ -166,6 +163,7 @@ impl DefaultClientLoginModule {
     fn check_token_timeout(&self) -> Result<bool, Error> {
         match &self.cache_account_info {
             None => {
+                log::error!("账户信息为空!");
                 panic!("账户信息为空!");
             }
             Some(_) => {

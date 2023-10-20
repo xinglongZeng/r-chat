@@ -1,6 +1,15 @@
+use common::cli::CliOpt;
 use common::structopt::StructOpt;
+use log4rs::config::*;
 pub fn main() {
+    log4rs::init_file("log4rs.yml", Default::default()).unwrap();
     client::start_client_mode();
+
+    // let mut param = String::new();
+    //
+    // let read_size = std::io::stdin().read_line(&mut param).unwrap();
+    //
+    // log::info!("接收到的command参数:{}", param);
 }
 
 #[cfg(test)]

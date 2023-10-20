@@ -11,14 +11,19 @@ pub struct DefaultLoginHandler {
     client: Option<Box<dyn ClientLoginModule + Send>>,
 }
 
-impl DefaultLoginHandler{
-    
-    pub fn new(server_flg:bool ,server: Option<Box<dyn ServerLoginModule + Send>>, client: Option<Box<dyn ClientLoginModule + Send>>,)->Self{
-        DefaultLoginHandler{server_flg,server,client}
+impl DefaultLoginHandler {
+    pub fn new(
+        server_flg: bool,
+        server: Option<Box<dyn ServerLoginModule + Send>>,
+        client: Option<Box<dyn ClientLoginModule + Send>>,
+    ) -> Self {
+        DefaultLoginHandler {
+            server_flg,
+            server,
+            client,
+        }
     }
-    
 }
-
 
 impl HandlerProtocolData for DefaultLoginHandler {
     fn handle(&mut self, address: SocketAddr, data: &Vec<u8>) -> Option<Vec<u8>> {

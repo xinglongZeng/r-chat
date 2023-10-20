@@ -122,11 +122,11 @@ pub fn handle_rx(
 ) -> JoinHandle<()> {
     let task = thread::spawn(move || loop {
         let command = command_rx.recv().unwrap();
-        println!("handle_rx 接收到 command:{:?}", command.clone());
+        log::info!("handle_rx 接收到 command:{:?}", command.clone());
         let result = handle_command(command);
         let s_result = command_result_tx.send(result);
         if s_result.is_err() {
-            eprintln!("command result send fail ! ");
+            warn!("command result send fail ! ");
         }
     });
     task
@@ -199,14 +199,14 @@ impl TcpServerSide {
     fn start_server_accept(&mut self) {
         let listener = TcpListener::bind(self.addr.clone()).unwrap();
 
-        println!("##########  TcpServer started! ###########");
+        info!("##########  TcpServer started! ###########");
 
         while self.state == TcpSideState::RUNNING {
             let (stream, address) = listener.accept().unwrap();
             parse_tcp_stream(stream, address, &mut self.all_conn_cache, &mut self.factory);
         }
 
-        println!("##########  TcpServer stopped! ###########");
+        info!("##########  TcpServer stopped! ###########");
     }
 }
 
