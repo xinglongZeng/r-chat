@@ -21,7 +21,7 @@ pub fn start_client_mode() {
     dotenvy::dotenv().ok();
 
     // set logger level to debug
-    env_logger::init_from_env(Env::default().default_filter_or("debug"));
+    // env_logger::init_from_env(Env::default().default_filter_or("debug"));
 
     // start trace info collect.  开启堆栈信息收集
     // tracing_subscriber::fmt::init();
@@ -41,13 +41,11 @@ pub fn start_client_mode() {
     let task2 = handle_rx(command_rx, command_result_tx);
 
     // todo: cli需要单独一个进程
-    let task3 = start_cli_listen(command_tx, command_result_rx);
+    // let task3 = start_cli_listen(command_tx, command_result_rx);
 
     task1.join().expect("task join for client.start fail ! ");
     task2.join().expect("task join for handle_rx fail ! ");
-    task3
-        .join()
-        .expect("task join for start_cli_listen fail ! ");
+    //  task3.join().expect("task join for start_cli_listen fail ! ");
 }
 
 /// 开启子线程来监听cli的参数，然后通过消息通道的方式讲参数传送到处理socket的线程
