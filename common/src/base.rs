@@ -27,9 +27,9 @@ pub enum RchatCommand {
 // RchatCommand的执行结果
 #[derive(Debug, Clone)]
 pub struct RcommandResult {
-    command: RchatCommand,
-    is_success: bool,
-    err_msg: String,
+    pub command: RchatCommand,
+    pub is_success: bool,
+    pub err_msg: String,
 }
 
 impl PartialEq<Self> for RchatCommand {

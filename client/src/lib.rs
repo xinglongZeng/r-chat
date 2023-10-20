@@ -20,12 +20,6 @@ pub fn start_client_mode() {
     // get env vars   读取.env文件中的变量，相当于读取配置文件
     dotenvy::dotenv().ok();
 
-    // set logger level to debug
-    // env_logger::init_from_env(Env::default().default_filter_or("debug"));
-
-    // start trace info collect.  开启堆栈信息收集
-    // tracing_subscriber::fmt::init();
-
     // 通道1，接受和处理command
     let (command_tx, command_rx) = mpsc::channel();
 
@@ -41,52 +35,13 @@ pub fn start_client_mode() {
     let task2 = handle_rx(command_rx, command_result_tx);
 
     // todo: cli需要单独一个进程
-    // let task3 = start_cli_listen(command_tx, command_result_rx);
+    let task3 = common::cli::start_cli_listen(command_tx, command_result_rx);
 
     task1.join().expect("task join for client.start fail ! ");
     task2.join().expect("task join for handle_rx fail ! ");
-    //  task3.join().expect("task join for start_cli_listen fail ! ");
-}
-
-/// 开启子线程来监听cli的参数，然后通过消息通道的方式讲参数传送到处理socket的线程
-fn start_cli_listen(
-    command_tx: Sender<RchatCommand>,
-    command_result_rx: Receiver<RcommandResult>,
-) -> JoinHandle<()> {
-    let cli_task = thread::spawn(move || {
-        let cli = CliOpt::from_args();
-
-        log::info!("接收到的command参数:{:?}", cli);
-
-        let command = RchatCommand::from_string(cli.command.as_str());
-
-        // 通过消息通道发送到主线程处理
-        let send_result = command_tx.send(command.clone());
-        log::info!("command 发送完成. {:?}", command);
-
-        if send_result.is_err() {
-            log::info!("command channel send fail! command:{:?}", command);
-        }
-        // 从通道接收执行结果
-        let handle_result = command_result_rx.recv().unwrap();
-        // 处理 result
-        handle_command_result(handle_result);
-    });
-
-    cli_task
-}
-
-// 处理command的执行结果
-fn handle_command_result(result: RcommandResult) {
-    log::info!("开始处理 RcommandResult: {:?}", result);
-    // 获得 stdout 实体
-    let stdout = io::stdout();
-
-    // 可选: 把  stdout 的 控制权 包裹进一个 buffer
-    let mut handle = io::BufWriter::new(stdout);
-
-    // 终端上输出执行结果
-    writeln!(handle, "command-result: {:?}", result).expect("输出commande结果到终端失败!");
+    task3
+        .join()
+        .expect("task join for start_cli_listen fail ! ");
 }
 
 // 创建TcpClientSide
