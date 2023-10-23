@@ -1,6 +1,26 @@
 use std::env;
 use std::ffi::OsStr;
 
+pub struct ProtocolVersion {
+    version: u8,
+}
+
+impl ProtocolVersion {
+    pub fn new() -> Self {
+        dotenvy::dotenv().ok();
+        let version = env::var("PROTOCOL_VERSION").expect("PROTOCOL_VERSION is not set in .env file");
+        ProtocolVersion{
+            version: version.parse().unwrap(),
+        }
+    }
+    
+    pub fn to_vec(&self)->Vec<u8>{
+        let mut v =Vec::new();
+        v.push(self.version);
+        v
+    }
+}
+
 pub struct TcpSocketConfig {
     pub tcp_host: String,
     pub tcp_port: String,

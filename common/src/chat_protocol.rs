@@ -6,6 +6,7 @@ use std::net::{SocketAddr, TcpStream};
 
 static MAX_DATA_LEN: u64 = u32::MAX as u64;
 
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Protocol {
     // -----------------    head 区   ---------------
@@ -28,8 +29,6 @@ pub enum ProtocolFieldNameEnum {
     version,
     data_type,
     data_len,
-    source_id,
-    target_id,
     data,
 }
 
@@ -98,8 +97,6 @@ impl Protocol {
             ProtocolFieldNameEnum::version | ProtocolFieldNameEnum::data_type => 1,
 
             ProtocolFieldNameEnum::data_len => 4,
-
-            ProtocolFieldNameEnum::source_id | ProtocolFieldNameEnum::target_id => 8,
 
             ProtocolFieldNameEnum::data => self.calculate_data_len(),
 
@@ -175,25 +172,3 @@ pub fn calculate_len_by_data(data: &Vec<u8>) -> Vec<u8> {
     (len as u32).to_be_bytes().to_vec()
 }
 
-pub struct ProtocolCacheData {
-    stream: TcpStream,
-
-    data: Option<Protocol>,
-}
-
-//解析结果
-pub struct ParseResult {
-    // 是否解析完成
-    finished: bool,
-    // 已经解析出来的协议数据，注意，可能该协议数据并不完整
-    protocol: Protocol,
-    // 剩余的还未解析的字节数据
-    remain: Vec<u8>,
-}
-
-/** socket报文解析的module
- **/
-trait ParseProtocolModule<T> {
-    // 解析字节数据为协议报文数据
-    fn parse_bytes_to_protocol(addr: SocketAddr, data: Vec<u8>) -> ParseResult;
-}

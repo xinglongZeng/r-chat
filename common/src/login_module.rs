@@ -1,3 +1,6 @@
+use crate::base::RchatCommand;
+use crate::chat_protocol::Protocol;
+use crate::config::ProtocolVersion;
 use crate::protocol_factory::HandlerProtocolData;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
@@ -43,7 +46,7 @@ impl HandlerProtocolData for DefaultLoginHandler {
                 if resp.is_err() {
                     let t = BizResult {
                         is_success: false,
-                        msg: Some(resp.err().unwrap().to_string()),
+                        msg: Some(resp.err().unwrap().as_str()),
                         data: None,
                     };
                     bizResult = Some(t);
@@ -105,7 +108,7 @@ pub struct BizLoginData {
     pub data: LoginDataEnum,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum LoginDataEnum {
     ReqData(LoginReqData),
     RespData(BizResult<LoginRespData>),
@@ -117,10 +120,25 @@ pub enum LoginTypeEnum {
     Resp,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct LoginReqData {
     pub account: String,
     pub pwd: String,
+}
+
+impl LoginReqData {
+    pub fn convert_protocol(&self) -> Protocol {
+        let version = ProtocolVersion::new().to_vec();
+        let data_type = RchatCommand::Login.to_data_type();
+        let data = bincode::serialize(&self).unwrap();
+        let data_len = vec![data.len() as u8];
+        Protocol {
+            version: Some(version),
+            data_type: Some(data_type),
+            data_len: Some(data_len),
+            data: Some(data),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -135,7 +153,7 @@ pub struct BizResult<T> {
     // 是否成功的标识
     pub is_success: bool,
     // is_success为fail时才有值
-    pub msg: Option<String>,
+    pub msg: Option<&'static str>,
     // 数据
     pub data: Option<T>,
 }

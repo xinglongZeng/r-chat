@@ -1,5 +1,6 @@
 use crate::chat_module::{ChatContent, ChatData, ChatFileContent, ChatTextContent};
 use crate::chat_protocol::Protocol;
+use crate::login_module::{BizResult, LoginReqData, LoginRespData};
 use crate::protocol_factory::HandleProtocolFactory;
 use enum_index::{EnumIndex, IndexEnum};
 use enum_index_derive::{EnumIndex, IndexEnum};
@@ -10,11 +11,11 @@ use std::error::Error;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
 use std::sync::mpsc::{Receiver, Sender};
-use std::sync::{Arc, Mutex};
-use std::thread;
+use std::sync::{Arc, Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::thread::JoinHandle;
+use std::{thread, time};
 
-#[derive(Debug, Clone, EnumIndex, IndexEnum, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, EnumIndex, IndexEnum, Serialize, Deserialize)]
 pub enum RchatCommand {
     Login,
     Chat,
@@ -72,18 +73,21 @@ pub enum TcpSideState {
 }
 
 pub struct TcpClientSide {
+    is_login_flg: bool,
     local_addr: SocketAddr,
-    server_side: Option<TcpServerSide>,
+    remote_server_address: Option<SocketAddr>,
+    core: Option<TcpServerSide>,
 }
 
 impl TcpClientSide {
     pub fn get_state(&self) -> &TcpSideState {
-        &self.server_side.as_ref().unwrap().state
+        &self.core.as_ref().unwrap().state
     }
 
-    pub fn new(server_side_address: SocketAddr, factory: HandleProtocolFactory) -> Self {
+    pub fn new(remote_server_address: SocketAddr, factory: HandleProtocolFactory) -> Self {
         // 连接server端，得到stream
-        let server_stream = TcpStream::connect(server_side_address).expect("连接server端失败!");
+        let server_stream =
+            TcpStream::connect(remote_server_address.clone()).expect("连接server端失败!");
 
         // 从stream中得到本地使用的地址
         let local_addr = server_stream.local_addr().unwrap();
@@ -91,28 +95,64 @@ impl TcpClientSide {
         info!("client使用端口地址:{}", local_addr.to_string());
 
         let mut client = TcpClientSide {
+            is_login_flg: false,
             local_addr,
-            server_side: None,
+            remote_server_address: Some(remote_server_address.clone()),
+            core: None,
         };
 
         // 用local_addr创建tcpServerSide
         let mut server = TcpServerSide::new(local_addr.to_string(), factory);
 
         let cache_data = ProtocolCacheData {
-            stream: server_stream,
+            stream: RwLock::new(server_stream),
             data: None,
         };
 
-        server.add_stream(server_side_address, cache_data);
+        server.add_stream(remote_server_address, cache_data);
 
-        client.server_side = Some(server);
+        client.core = Some(server);
 
         client
     }
 
     // invoke this function , current thread will be loop to execute handle accept request.
     pub fn start(&mut self) {
-        self.server_side.as_mut().unwrap().start();
+        self.core.as_mut().unwrap().start();
+    }
+
+    // 客户端进行登录
+    pub fn login(&mut self, data: LoginReqData, time_out: u64) -> BizResult<LoginRespData> {
+        // 判断client是否已经在运行状态
+        if self.core.is_none() || self.get_state() != &TcpSideState::RUNNING {
+            return BizResult {
+                is_success: false,
+                msg: Some("client还未启动!"),
+                data: None,
+            };
+        }
+
+        let mut core = self.core.as_mut().unwrap();
+        let cache = core
+            .all_conn_cache
+            .get_mut(&self.remote_server_address.unwrap())
+            .unwrap();
+        let lock_stream = cache.try_get_mut_stream();
+
+        if lock_stream.is_none() {
+            return BizResult {
+                is_success: false,
+                msg: Some("获取mut stream失败!"),
+                data: None,
+            };
+        }
+
+        let v_data = data.convert_protocol().to_vec().as_mut_slice();
+
+        // 通过stream跟server端发送登录请求的字节数据
+        let _ = lock_stream.unwrap().write_all(v_data).unwrap();
+
+        // todo: 验证登录是否成功
     }
 }
 
@@ -132,16 +172,14 @@ pub fn handle_rx(
     task
 }
 
+// todo: 处理传入的命令command
 fn handle_command(command: RchatCommand) -> RcommandResult {
     let result = match command {
-        _ => {
-            // todo:
-            RcommandResult {
-                command,
-                is_success: true,
-                err_msg: "执行完成".to_string(),
-            }
-        }
+        _ => RcommandResult {
+            command,
+            is_success: true,
+            err_msg: "执行完成".to_string(),
+        },
     };
 
     result
@@ -211,9 +249,71 @@ impl TcpServerSide {
 }
 
 pub struct ProtocolCacheData {
-    stream: TcpStream,
+    stream: RwLock<TcpStream>,
 
     data: Option<Protocol>,
+}
+
+impl ProtocolCacheData {
+    ///  尝试获取可读的TcpStream的引用的锁，如果获取失败则返回None.
+    ///  注意:如果第一次获取锁失败，则当前线程会等待20毫秒，再尝试获取锁。一共会尝试3次，如果都失败，则返回None  
+    pub fn try_get_read(&self) -> Option<RwLockReadGuard<TcpStream>> {
+        return self.try_get_read_stream_by_param(3, 20);
+    }
+
+    ///  尝试获取可变的TcpStream的引用的锁，如果获取失败则返回None.
+    ///  注意:如果第一次获取锁失败，则当前线程会等待20毫秒，再尝试获取锁。一共会尝试3次，如果都失败，则返回None  
+    pub fn try_get_mut_stream(&mut self) -> Option<RwLockWriteGuard<TcpStream>> {
+        return self.try_get_mut_stream_by_param(3, 20);
+    }
+
+    /// 根据指定参数，尝试获取可变的stream
+    /// try_count: 尝试的次数，比心大于0.
+    ///  time_out: 尝试获取锁失败时，当前线程sleep的时间，单位是毫秒.
+    pub fn try_get_mut_stream_by_param(
+        &mut self,
+        mut try_count: usize,
+        time_out: u64,
+    ) -> Option<RwLockWriteGuard<TcpStream>> {
+        while try_count > 0 {
+            let lock = self.stream.try_write();
+            match lock {
+                Ok(t) => {
+                    return Some(t);
+                }
+                Err(e) => {
+                    let t = time::Duration::from_millis(time_out);
+                    thread::sleep(t);
+                    try_count -= 1;
+                }
+            }
+        }
+        None
+    }
+
+    /// 根据指定参数，尝试获取可读的stream
+    /// try_count: 尝试的次数，比心大于0.
+    ///  time_out: 尝试获取锁失败时，当前线程sleep的时间，单位是毫秒.
+    pub fn try_get_read_stream_by_param(
+        &self,
+        mut try_count: usize,
+        time_out: u64,
+    ) -> Option<RwLockReadGuard<TcpStream>> {
+        while try_count > 0 {
+            let lock = self.stream.try_read();
+            match lock {
+                Ok(t) => {
+                    return Some(t);
+                }
+                Err(e) => {
+                    let t = time::Duration::from_millis(time_out);
+                    thread::sleep(t);
+                    try_count -= 1;
+                }
+            }
+        }
+        None
+    }
 }
 
 fn parse_tcp_stream(
@@ -232,14 +332,16 @@ fn parse_tcp_stream(
         }
 
         None => ProtocolCacheData {
-            stream,
+            stream: RwLock::new(stream),
             data: Some(Protocol::create_new()),
         },
     };
 
     let mut buf = [0; 128];
 
-    let mut remain = pca.stream.read(&mut buf).unwrap();
+    let mut read_stream = pca.try_get_read().unwrap();
+
+    let mut remain = read_stream.read(&mut buf).unwrap();
 
     let total_len = remain.clone();
 
@@ -263,7 +365,8 @@ fn parse_tcp_stream(
             let resp = handle_pkg(pca.data.as_ref().unwrap(), address.clone(), factory);
 
             if resp.is_some() {
-                pca.stream
+                pca.try_get_mut_stream()
+                    .unwrap()
                     .write_all(&resp.unwrap())
                     .expect("stream send resp occurs fail !");
             }

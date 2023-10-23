@@ -1,22 +1,18 @@
-use common::base::{handle_rx, RchatCommand, RcommandResult, TcpClientSide};
-use common::cli::CliOpt;
-use common::login_module::{BizResult, ClientLoginModule, DefaultLoginHandler, LoginRespData};
+use common::base::{handle_rx, RchatCommand, TcpClientSide};
+use common::login_module::{BizResult, ClientLoginModule, DefaultLoginHandler, LoginReqData, LoginRespData};
 use common::protocol_factory::HandleProtocolFactory;
-use common::structopt::StructOpt;
-use env_logger::Env;
 use log::warn;
 use std::fmt::Error;
 use std::fs::File;
-use std::io::{self, Write};
 use std::net::{SocketAddr, SocketAddrV4};
 use std::os::unix::fs::FileExt;
 use std::str::FromStr;
-use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{mpsc, Arc};
-use std::thread::JoinHandle;
 use std::{env, fs, thread};
 
 pub fn start_client_mode() {
+    log4rs::init_file("log4rs.yml", Default::default()).unwrap();
+
     // get env vars   读取.env文件中的变量，相当于读取配置文件
     dotenvy::dotenv().ok();
 
@@ -34,7 +30,6 @@ pub fn start_client_mode() {
 
     let task2 = handle_rx(command_rx, command_result_tx);
 
-    // todo: cli需要单独一个进程
     let task3 = common::cli::start_cli_listen(command_tx, command_result_rx);
 
     task1.join().expect("task join for client.start fail ! ");

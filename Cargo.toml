@@ -10,7 +10,7 @@ userinfo-web={path= "userinfo-web" }
 common={path = "common"}
 server={path = "server"}
 client={path = "client"}
-log4rs="1.2.0"
+
 
 [workspace]
 members=[".", "userinfo-web","common","server","client"]

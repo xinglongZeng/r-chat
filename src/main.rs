@@ -1,7 +1,6 @@
 use common::cli;
 use common::structopt::StructOpt;
 pub fn main() {
-    log4rs::init_file("log4rs.yml", Default::default()).unwrap();
     client::start_client_mode();
 }
 
