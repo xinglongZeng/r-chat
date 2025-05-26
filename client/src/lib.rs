@@ -8,9 +8,9 @@ use log::warn;
 use std::fmt::Error;
 use std::fs::File;
 use std::net::{SocketAddr, SocketAddrV4};
-use std::os::unix::fs::FileExt;
 use std::str::FromStr;
 use std::{env, fs};
+use std::io::Write;
 
 pub fn start_client() {
     // get env vars   读取.env文件中的变量，相当于读取配置文件
@@ -119,8 +119,7 @@ fn save_account_info(path: &String, data: LoginRespData) -> LoginRespData {
     // 2. 将字节数据存储到文件中
     fs::create_dir_all(path).expect("创建account存储目录失败!");
     let file_name = format!("{}/{}", path, &data.account);
-    let file = File::create(file_name).unwrap();
-    file.write_all_at(byte_result.unwrap().as_slice(), 0)
-        .unwrap();
+    let mut file = File::create(file_name).unwrap();
+    file.write_all(byte_result.unwrap().as_slice()).expect("save_account_info fail!");
     data
 }
