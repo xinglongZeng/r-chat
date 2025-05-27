@@ -14,6 +14,14 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::thread::JoinHandle;
 use std::{thread, time};
+use serde_json::de;
+
+#[derive(Hash,Debug, Clone, Serialize, Deserialize)]
+pub struct RchatCommandRequest {
+    pub command: RchatCommand,
+    // json格式入参的字符串
+    pub args: String,
+}
 
 #[derive(Hash,Debug, Clone, EnumIndex, IndexEnum, Serialize, Deserialize)]
 pub enum RchatCommand {
@@ -25,12 +33,16 @@ pub enum RchatCommand {
     Test,
 }
 
+
+
+
 // RchatCommand的执行结果
 #[derive(Debug, Clone)]
-pub struct RcommandResult {
+pub struct RcommandResult<T> {
     pub command: RchatCommand,
     pub is_success: bool,
-    pub err_msg: String,
+    pub err_msg: Option<String>,
+    pub data: Option<T>,
 }
 
 impl PartialEq<Self> for RchatCommand {
@@ -80,6 +92,23 @@ pub struct TcpClientSide {
 }
 
 impl TcpClientSide {
+
+    pub fn handle_rx(&mut self,
+        command_rx: Receiver<RchatCommandRequest>,
+        command_result_tx: Sender<RcommandResult>,
+    ) -> JoinHandle<()> {
+        let task = thread::spawn(move || loop {
+            let command = command_rx.recv().unwrap();
+            log::info!("handle_rx 接收到 command:{:?}", command.clone());
+            let result = handle_command(command);
+            let s_result = command_result_tx.send(result);
+            if s_result.is_err() {
+                warn!("command result send fail ! ");
+            }
+        });
+        task
+    }
+    
     pub fn get_state(&self) -> &TcpSideState {
         &self.core.as_ref().unwrap().state
     }
@@ -122,7 +151,7 @@ impl TcpClientSide {
     }
 
     // 客户端进行登录
-    pub fn login(&mut self, data: LoginReqData, time_out: u64) -> BizResult<LoginRespData> {
+    fn login(&mut self, data: LoginReqData) -> BizResult<LoginRespData> {
         // 判断client是否已经在运行状态
         if self.core.is_none() || self.get_state() != &TcpSideState::RUNNING {
             return BizResult {
@@ -160,10 +189,27 @@ impl TcpClientSide {
             data: None,
         }
     }
+    
+    // 使用命令行登录
+    pub fn login_for_command(&mut self, data: String) -> RcommandResult<LoginRespData>{
+       let login_data: LoginReqData  = serde_json::from_str(data.as_str()).unwrap();
+       let loginResult = self.login(login_data);
+        
+        if loginResult.is_success {
+            RcommandResult{
+                command: RchatCommand::Login,
+                is_success: true,
+                err_msg: ,
+                data: None,
+            }  
+            
+        }
+        
+    }
 }
 
 pub fn handle_rx(
-    command_rx: Receiver<RchatCommand>,
+    command_rx: Receiver<RchatCommandRequest>,
     command_result_tx: Sender<RcommandResult>,
 ) -> JoinHandle<()> {
     let task = thread::spawn(move || loop {
@@ -179,13 +225,23 @@ pub fn handle_rx(
 }
 
 // todo: 处理传入的命令command
-fn handle_command(command: RchatCommand) -> RcommandResult {
-    let result = match command {
+fn handle_command(client_side: &mut  TcpClientSide ,req: RchatCommandRequest) -> RcommandResult<LoginRespData> {
+    
+    
+    let result = match req.command {
+        
+        // 登录
+        RchatCommand::Login => {
+           return client_side.login_for_command(req.args);
+        }
+        
+        // other
         _ => RcommandResult {
-            command,
+            command: req.command,
             is_success: true,
-            err_msg: "执行完成".to_string(),
-        },
+            err_msg: Some("执行失败".to_string()),
+            data: Option::None,
+        }
     };
 
     result
