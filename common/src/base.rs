@@ -15,7 +15,7 @@ use std::sync::{Arc, Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::thread::JoinHandle;
 use std::{thread, time};
 
-#[derive(Debug, Clone, EnumIndex, IndexEnum, Serialize, Deserialize)]
+#[derive(Hash,Debug, Clone, EnumIndex, IndexEnum, Serialize, Deserialize)]
 pub enum RchatCommand {
     Login,
     Chat,
@@ -127,7 +127,7 @@ impl TcpClientSide {
         if self.core.is_none() || self.get_state() != &TcpSideState::RUNNING {
             return BizResult {
                 is_success: false,
-                msg: Some("client还未启动!"),
+                msg: Some("client还未启动!".to_string()),
                 data: None,
             };
         }
@@ -142,17 +142,23 @@ impl TcpClientSide {
         if lock_stream.is_none() {
             return BizResult {
                 is_success: false,
-                msg: Some("获取mut stream失败!"),
+                msg: Some("获取mut stream失败!".to_string()),
                 data: None,
             };
         }
 
-        let v_data = data.convert_protocol().to_vec().as_mut_slice();
-
+        let v_data = data.convert_protocol().to_vec();
+        
         // 通过stream跟server端发送登录请求的字节数据
-        let _ = lock_stream.unwrap().write_all(v_data).unwrap();
+        let _ = lock_stream.unwrap().write_all(&v_data).unwrap();
 
         // todo: 验证登录是否成功
+
+        BizResult{
+            is_success: false,
+            msg: Some("暂未实现登录".to_string()),
+            data: None,
+        }
     }
 }
 
@@ -339,7 +345,7 @@ fn parse_tcp_stream(
 
     let mut buf = [0; 128];
 
-    let mut read_stream = pca.try_get_read().unwrap();
+    let read_stream = pca.stream.get_mut().unwrap();
 
     let mut remain = read_stream.read(&mut buf).unwrap();
 

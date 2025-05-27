@@ -2,6 +2,7 @@ use derive_more::Display;
 use enum_index_derive::{EnumIndex, IndexEnum};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
+use std::io::Write;
 use std::net::{SocketAddr, TcpStream};
 
 static MAX_DATA_LEN: u64 = u32::MAX as u64;
@@ -33,12 +34,13 @@ pub enum ProtocolFieldNameEnum {
 }
 
 impl Protocol {
-    pub fn to_vec(&mut self) -> Vec<u8> {
+    pub fn to_vec(& self) -> Vec<u8> {
         let mut v = vec![];
-        v.append(self.version.as_mut().unwrap());
-        v.append(self.data_type.as_mut().unwrap());
-        v.append(self.data_len.as_mut().unwrap());
-        v.append(self.data.as_mut().unwrap());
+        let tmp = self.clone();
+        v.append(tmp.version.unwrap().by_ref());
+        v.append(tmp.data_type.unwrap().by_ref());
+        v.append(tmp.data_len.unwrap().by_ref());
+        v.append(tmp.data.unwrap().by_ref());
         v
     }
 

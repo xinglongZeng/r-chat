@@ -46,7 +46,7 @@ impl HandlerProtocolData for DefaultLoginHandler {
                 if resp.is_err() {
                     let t = BizResult {
                         is_success: false,
-                        msg: Some(resp.err().unwrap().as_str()),
+                        msg: Some(resp.unwrap_err().clone()),
                         data: None,
                     };
                     bizResult = Some(t);
@@ -153,7 +153,7 @@ pub struct BizResult<T> {
     // 是否成功的标识
     pub is_success: bool,
     // is_success为fail时才有值
-    pub msg: Option<&'static str>,
+    pub msg: Option<String>,
     // 数据
     pub data: Option<T>,
 }

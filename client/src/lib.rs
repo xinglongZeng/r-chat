@@ -5,10 +5,10 @@ use log::warn;
 use std::fmt::Error;
 use std::fs::File;
 use std::net::{SocketAddr, SocketAddrV4};
-use std::os::unix::fs::FileExt;
 use std::str::FromStr;
 use std::sync::{mpsc, Arc};
 use std::{env, fs, thread};
+use std::io::Write;
 
 pub fn start_client_mode() {
     log4rs::init_file("log4rs.yml", Default::default()).unwrap();
@@ -140,8 +140,7 @@ fn save_account_info(path: &String, data: LoginRespData) -> LoginRespData {
     // 2. 将字节数据存储到文件中
     fs::create_dir_all(path).expect("创建account存储目录失败!");
     let file_name = format!("{}/{}", path, &data.account);
-    let file = File::create(file_name).unwrap();
-    file.write_all_at(byte_result.unwrap().as_slice(), 0)
-        .unwrap();
+    let mut file = File::create(file_name).unwrap();
+    file.write_all(byte_result.unwrap().as_mut_slice()).expect("save_account_info 写入账户信息失败!");
     data
 }
