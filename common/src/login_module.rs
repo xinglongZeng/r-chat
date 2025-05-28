@@ -1,4 +1,4 @@
-use crate::base::RchatCommand;
+use crate::base::{RchatCommand, RcommandResultParam};
 use crate::chat_protocol::Protocol;
 use crate::config::ProtocolVersion;
 use crate::protocol_factory::HandlerProtocolData;
@@ -146,6 +146,10 @@ pub struct LoginRespData {
     pub user_id: i32,
     pub account: String,
     pub token: String,
+}
+
+impl RcommandResultParam for LoginRespData {
+    
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

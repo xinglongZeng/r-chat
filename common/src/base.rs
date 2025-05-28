@@ -34,11 +34,13 @@ pub enum RchatCommand {
 }
 
 
-
+pub trait RcommandResultParam{
+    
+}
 
 // RchatCommand的执行结果
 #[derive(Debug, Clone)]
-pub struct RcommandResult<T> {
+pub struct RcommandResult<T:RcommandResultParam> {
     pub command: RchatCommand,
     pub is_success: bool,
     pub err_msg: Option<String>,
@@ -93,14 +95,14 @@ pub struct TcpClientSide {
 
 impl TcpClientSide {
 
-    pub fn handle_rx(&mut self,
+    pub fn handle_rx <T:RcommandResultParam> (&mut self,
         command_rx: Receiver<RchatCommandRequest>,
-        command_result_tx: Sender<RcommandResult>,
+        command_result_tx: Sender<RcommandResult<T>>,
     ) -> JoinHandle<()> {
         let task = thread::spawn(move || loop {
             let command = command_rx.recv().unwrap();
             log::info!("handle_rx 接收到 command:{:?}", command.clone());
-            let result = handle_command(command);
+            let result = handle_command(self ,command);
             let s_result = command_result_tx.send(result);
             if s_result.is_err() {
                 warn!("command result send fail ! ");
@@ -108,7 +110,7 @@ impl TcpClientSide {
         });
         task
     }
-    
+
     pub fn get_state(&self) -> &TcpSideState {
         &self.core.as_ref().unwrap().state
     }
@@ -177,7 +179,7 @@ impl TcpClientSide {
         }
 
         let v_data = data.convert_protocol().to_vec();
-        
+
         // 通过stream跟server端发送登录请求的字节数据
         let _ = lock_stream.unwrap().write_all(&v_data).unwrap();
 
@@ -189,22 +191,22 @@ impl TcpClientSide {
             data: None,
         }
     }
-    
+
     // 使用命令行登录
-    pub fn login_for_command(&mut self, data: String) -> RcommandResult<LoginRespData>{
+    pub fn login_for_command <T:RcommandResultParam> (&mut self, data: String) -> RcommandResult<T>{
        let login_data: LoginReqData  = serde_json::from_str(data.as_str()).unwrap();
        let loginResult = self.login(login_data);
-        
+
         if loginResult.is_success {
             RcommandResult{
                 command: RchatCommand::Login,
                 is_success: true,
                 err_msg: ,
                 data: None,
-            }  
-            
+            }
+
         }
-        
+
     }
 }
 
@@ -225,22 +227,21 @@ pub fn handle_rx(
 }
 
 // todo: 处理传入的命令command
-fn handle_command(client_side: &mut  TcpClientSide ,req: RchatCommandRequest) -> RcommandResult<LoginRespData> {
-    
-    
+fn handle_command <T:RcommandResultParam> (client_side: &mut  TcpClientSide ,req: RchatCommandRequest) -> RcommandResult<T> {
+
     let result = match req.command {
-        
+
         // 登录
         RchatCommand::Login => {
            return client_side.login_for_command(req.args);
         }
-        
+
         // other
         _ => RcommandResult {
             command: req.command,
-            is_success: true,
+            is_success: false,
             err_msg: Some("执行失败".to_string()),
-            data: Option::None,
+            data: None,
         }
     };
 
